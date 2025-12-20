@@ -64,20 +64,20 @@ export function Checkout({ onBack }: CheckoutProps) {
       setDeliveryFee(0);
     }
 
-    const validation = validateMinimumOrder(total, minimumOrderAmount);
+    const validation = validateMinimumOrder(total, minimumOrderAmount, currency);
     if (!validation.valid) {
       setValidationError(validation.message || '');
     } else {
       setValidationError('');
     }
-  }, [total, deliveryType, deliveryFeeTiers, minimumOrderAmount]);
+  }, [total, deliveryType, deliveryFeeTiers, minimumOrderAmount, currency]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const validation = validateMinimumOrder(total, minimumOrderAmount);
+      const validation = validateMinimumOrder(total, minimumOrderAmount, currency);
       if (!validation.valid) {
         alert(validation.message);
         return;

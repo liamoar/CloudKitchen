@@ -43,12 +43,13 @@ export function calculateDeliveryFee(
 
 export function validateMinimumOrder(
   orderAmount: number,
-  minimumOrderAmount: number
+  minimumOrderAmount: number,
+  currency: string = 'AED'
 ): { valid: boolean; message?: string } {
   if (minimumOrderAmount > 0 && orderAmount < minimumOrderAmount) {
     return {
       valid: false,
-      message: `Minimum order amount is ${formatCurrency(minimumOrderAmount)}`,
+      message: `Minimum order amount is ${formatCurrency(minimumOrderAmount, currency)}`,
     };
   }
   return { valid: true };

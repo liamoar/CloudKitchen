@@ -1,6 +1,9 @@
-import { X, Minus, Plus, ShoppingCart } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Minus, Plus, ShoppingCart, AlertCircle } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
-import { formatCurrency } from '../../lib/utils';
+import { useParams } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
+import { formatCurrency, calculateDeliveryFee, validateMinimumOrder, type DeliveryFeeTier } from '../../lib/utils';
 
 interface CartProps {
   onCheckout: () => void;
@@ -9,6 +12,38 @@ interface CartProps {
 
 export function Cart({ onCheckout, currency = 'AED' }: CartProps) {
   const { items, removeItem, updateQuantity, total } = useCart();
+  const { restaurantSlug } = useParams();
+  const [minimumOrderAmount, setMinimumOrderAmount] = useState<number>(0);
+  const [deliveryFeeTiers, setDeliveryFeeTiers] = useState<DeliveryFeeTier[]>([]);
+  const [deliveryFee, setDeliveryFee] = useState<number>(0);
+
+  useEffect(() => {
+    const loadRestaurantSettings = async () => {
+      if (!restaurantSlug) return;
+
+      const { data } = await supabase
+        .from('restaurants')
+        .select('minimum_order_amount, delivery_fee_tiers, restaurant_currency')
+        .eq('slug', restaurantSlug)
+        .maybeSingle();
+
+      if (data) {
+        setMinimumOrderAmount(data.minimum_order_amount || 0);
+        setDeliveryFeeTiers(data.delivery_fee_tiers || []);
+      }
+    };
+
+    loadRestaurantSettings();
+  }, [restaurantSlug]);
+
+  useEffect(() => {
+    if (deliveryFeeTiers.length > 0) {
+      const fee = calculateDeliveryFee(total, deliveryFeeTiers);
+      setDeliveryFee(fee);
+    }
+  }, [total, deliveryFeeTiers]);
+
+  const validation = validateMinimumOrder(total, minimumOrderAmount);
 
   if (items.length === 0) {
     return (
@@ -59,16 +94,48 @@ export function Cart({ onCheckout, currency = 'AED' }: CartProps) {
         ))}
       </div>
       <div className="p-4 border-t bg-gray-50">
-        <div className="flex justify-between items-center mb-4">
-          <span className="text-lg font-semibold text-gray-800">Total</span>
-          <span className="text-2xl font-bold text-orange-600">{formatCurrency(total, currency)}</span>
+        {!validation.valid && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
+            <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={18} />
+            <p className="text-xs text-yellow-800">
+              {validation.message}
+            </p>
+          </div>
+        )}
+        <div className="space-y-2 mb-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-700">Subtotal</span>
+            <span className="font-medium text-gray-900">{formatCurrency(total, currency)}</span>
+          </div>
+          {deliveryFeeTiers.length > 0 && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-700">Delivery Fee (est.)</span>
+              {deliveryFee === 0 ? (
+                <span className="font-medium text-green-600">FREE</span>
+              ) : (
+                <span className="font-medium text-gray-900">{formatCurrency(deliveryFee, currency)}</span>
+              )}
+            </div>
+          )}
+          <div className="flex justify-between items-center pt-2 border-t">
+            <span className="text-lg font-semibold text-gray-800">Total (est.)</span>
+            <span className="text-2xl font-bold text-orange-600">
+              {formatCurrency(total + deliveryFee, currency)}
+            </span>
+          </div>
         </div>
         <button
           onClick={onCheckout}
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition-colors"
+          disabled={!validation.valid}
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
           Proceed to Checkout
         </button>
+        {deliveryFeeTiers.length > 0 && (
+          <p className="text-xs text-gray-500 mt-2 text-center">
+            Final delivery fee will be calculated at checkout based on delivery type
+          </p>
+        )}
       </div>
     </div>
   );
