@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DollarSign, ShoppingCart, CreditCard, TrendingUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Order } from '../../lib/database.types';
 
 interface SalesData {
@@ -14,6 +15,8 @@ interface SalesData {
 }
 
 export function SalesAnalytics() {
+  const { user } = useAuth();
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [period, setPeriod] = useState<'day' | 'week' | 'month' | 'year'>('day');
   const [salesData, setSalesData] = useState<SalesData>({
     totalOrders: 0,
@@ -27,8 +30,24 @@ export function SalesAnalytics() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadSalesData();
-  }, [period]);
+    loadRestaurantId();
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (restaurantId) {
+      loadSalesData();
+    }
+  }, [period, restaurantId]);
+
+  const loadRestaurantId = async () => {
+    if (!user?.id) return;
+    const { data } = await supabase
+      .from('restaurants')
+      .select('id')
+      .eq('owner_id', user.id)
+      .maybeSingle();
+    if (data) setRestaurantId(data.id);
+  };
 
   const getDateRange = () => {
     const now = new Date();
@@ -53,12 +72,14 @@ export function SalesAnalytics() {
   };
 
   const loadSalesData = async () => {
+    if (!restaurantId) return;
     setLoading(true);
     const startDate = getDateRange();
 
     const { data: orders } = await supabase
       .from('orders')
       .select('*')
+      .eq('restaurant_id', restaurantId)
       .gte('created_at', startDate)
       .neq('status', 'CANCELLED');
 

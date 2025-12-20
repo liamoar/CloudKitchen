@@ -6,6 +6,7 @@ import type { Product, ProductCategory, FeaturedProduct, RestaurantSettings } fr
 
 export function ProductManagement() {
   const { user } = useAuth();
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [settings, setSettings] = useState<RestaurantSettings | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
@@ -35,59 +36,78 @@ export function ProductManagement() {
   });
 
   useEffect(() => {
-    loadSettings();
-    loadProducts();
-    loadFeaturedProducts();
+    loadRestaurantId();
   }, [user?.id]);
 
   useEffect(() => {
-    if (settings?.enable_categories) {
+    if (restaurantId) {
+      loadSettings();
+      loadProducts();
+      loadFeaturedProducts();
+    }
+  }, [restaurantId]);
+
+  useEffect(() => {
+    if (settings?.enable_categories && restaurantId) {
       loadCategories();
     }
-  }, [settings]);
+  }, [settings, restaurantId]);
+
+  const loadRestaurantId = async () => {
+    if (!user?.id) return;
+    const { data } = await supabase
+      .from('restaurants')
+      .select('id')
+      .eq('owner_id', user.id)
+      .maybeSingle();
+    if (data) setRestaurantId(data.id);
+  };
 
   const loadSettings = async () => {
-    if (!user?.id) return;
+    if (!restaurantId) return;
     const { data } = await supabase
       .from('restaurant_settings')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('restaurant_id', restaurantId)
       .maybeSingle();
     if (data) setSettings(data);
   };
 
   const loadProducts = async () => {
+    if (!restaurantId) return;
     const { data } = await supabase
       .from('products')
       .select('*')
+      .eq('restaurant_id', restaurantId)
       .order('created_at', { ascending: false });
     if (data) setProducts(data);
   };
 
   const loadCategories = async () => {
-    if (!user?.id) return;
+    if (!restaurantId) return;
     const { data } = await supabase
       .from('product_categories')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('restaurant_id', restaurantId)
       .order('display_order');
     if (data) setCategories(data);
   };
 
   const loadFeaturedProducts = async () => {
-    if (!user?.id) return;
+    if (!restaurantId) return;
     const { data } = await supabase
       .from('featured_products')
       .select('*')
-      .eq('user_id', user.id);
+      .eq('restaurant_id', restaurantId);
     if (data) setFeaturedProducts(data);
   };
 
   const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.id) return;
+    if (!restaurantId) return;
 
     const productData = {
+      restaurant_id: restaurantId,
       name: productForm.name,
       description: productForm.description,
       price: parseFloat(productForm.price),
@@ -98,7 +118,7 @@ export function ProductManagement() {
     };
 
     if (editingProductId) {
-      await supabase.from('products').update(productData).eq('id', editingProductId);
+      await supabase.from('products').update(productData).eq('id', editingProductId).eq('restaurant_id', restaurantId);
     } else {
       await supabase.from('products').insert(productData);
     }
@@ -109,10 +129,10 @@ export function ProductManagement() {
 
   const handleCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.id) return;
+    if (!restaurantId) return;
 
     const categoryData = {
-      user_id: user.id,
+      restaurant_id: restaurantId,
       name: categoryForm.name,
       description: categoryForm.description || null,
       display_order: parseInt(categoryForm.display_order),
@@ -120,7 +140,7 @@ export function ProductManagement() {
     };
 
     if (editingCategoryId) {
-      await supabase.from('product_categories').update(categoryData).eq('id', editingCategoryId);
+      await supabase.from('product_categories').update(categoryData).eq('id', editingCategoryId).eq('restaurant_id', restaurantId);
     } else {
       await supabase.from('product_categories').insert(categoryData);
     }
@@ -155,32 +175,34 @@ export function ProductManagement() {
   };
 
   const handleDeleteProduct = async (id: string) => {
+    if (!restaurantId) return;
     if (confirm('Are you sure you want to delete this product?')) {
-      await supabase.from('products').delete().eq('id', id);
+      await supabase.from('products').delete().eq('id', id).eq('restaurant_id', restaurantId);
       loadProducts();
     }
   };
 
   const handleDeleteCategory = async (id: string) => {
+    if (!restaurantId) return;
     if (confirm('Are you sure you want to delete this category?')) {
-      await supabase.from('product_categories').delete().eq('id', id);
+      await supabase.from('product_categories').delete().eq('id', id).eq('restaurant_id', restaurantId);
       loadCategories();
     }
   };
 
   const toggleFeatured = async (productId: string) => {
-    if (!user?.id) return;
+    if (!restaurantId) return;
 
     const isFeatured = featuredProducts.some((fp) => fp.product_id === productId);
 
     if (isFeatured) {
       const fp = featuredProducts.find((fp) => fp.product_id === productId);
       if (fp) {
-        await supabase.from('featured_products').delete().eq('id', fp.id);
+        await supabase.from('featured_products').delete().eq('id', fp.id).eq('restaurant_id', restaurantId);
       }
     } else {
       await supabase.from('featured_products').insert({
-        user_id: user.id,
+        restaurant_id: restaurantId,
         product_id: productId,
         display_order: featuredProducts.length,
       });

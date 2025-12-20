@@ -84,7 +84,8 @@ export function RiderManagement() {
             phone: formData.phone,
             email: formData.email || null,
           })
-          .eq('id', editingRider.id);
+          .eq('id', editingRider.id)
+          .eq('restaurant_id', restaurantId);
       } else {
         await supabase
           .from('delivery_riders')
@@ -117,13 +118,15 @@ export function RiderManagement() {
   };
 
   const handleDelete = async (riderId: string) => {
+    if (!restaurantId) return;
     if (!confirm('Are you sure you want to delete this rider?')) return;
 
     try {
       await supabase
         .from('delivery_riders')
         .delete()
-        .eq('id', riderId);
+        .eq('id', riderId)
+        .eq('restaurant_id', restaurantId);
 
       loadRiders();
     } catch (error) {
@@ -133,11 +136,13 @@ export function RiderManagement() {
   };
 
   const toggleActive = async (rider: Rider) => {
+    if (!restaurantId) return;
     try {
       await supabase
         .from('delivery_riders')
         .update({ is_active: !rider.is_active })
-        .eq('id', rider.id);
+        .eq('id', rider.id)
+        .eq('restaurant_id', restaurantId);
 
       loadRiders();
     } catch (error) {

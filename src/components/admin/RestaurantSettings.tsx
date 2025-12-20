@@ -8,6 +8,7 @@ const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
 export function RestaurantSettings() {
   const { user } = useAuth();
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [settings, setSettings] = useState<RestaurantSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -27,22 +28,38 @@ export function RestaurantSettings() {
   });
 
   useEffect(() => {
-    loadSettings();
+    loadRestaurantId();
   }, [user?.id]);
 
-  const loadSettings = async () => {
+  useEffect(() => {
+    if (restaurantId) {
+      loadSettings();
+    }
+  }, [restaurantId]);
+
+  const loadRestaurantId = async () => {
     if (!user?.id) return;
+    const { data } = await supabase
+      .from('restaurants')
+      .select('id')
+      .eq('owner_id', user.id)
+      .maybeSingle();
+    if (data) setRestaurantId(data.id);
+  };
+
+  const loadSettings = async () => {
+    if (!restaurantId) return;
 
     try {
       let { data } = await supabase
         .from('restaurant_settings')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('restaurant_id', restaurantId)
         .maybeSingle();
 
       if (!data) {
         const defaultSettings = {
-          user_id: user.id,
+          restaurant_id: restaurantId,
           name: 'My Restaurant',
           address: '',
           city: '',
@@ -91,7 +108,7 @@ export function RestaurantSettings() {
   };
 
   const handleSave = async () => {
-    if (!user?.id || !settings?.id) return;
+    if (!restaurantId || !settings?.id) return;
 
     setSaving(true);
     setMessage('');
@@ -100,7 +117,8 @@ export function RestaurantSettings() {
       const { error } = await supabase
         .from('restaurant_settings')
         .update(formData)
-        .eq('id', settings.id);
+        .eq('id', settings.id)
+        .eq('restaurant_id', restaurantId);
 
       if (error) throw error;
       setMessage('Settings saved successfully!');

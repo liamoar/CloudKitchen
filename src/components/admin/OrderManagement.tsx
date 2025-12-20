@@ -10,6 +10,7 @@ interface OrderWithItems extends Order {
 
 interface Restaurant {
   id: string;
+  slug: string;
   is_payment_overdue: boolean;
   status: string;
 }
@@ -47,7 +48,7 @@ export function OrderManagement() {
 
     const { data } = await supabase
       .from('restaurants')
-      .select('id, is_payment_overdue, status')
+      .select('id, slug, is_payment_overdue, status')
       .eq('owner_id', user.id)
       .maybeSingle();
 
@@ -71,9 +72,12 @@ export function OrderManagement() {
   };
 
   const loadOrders = async () => {
+    if (!restaurant?.id) return;
+
     const { data: ordersData } = await supabase
       .from('orders')
       .select('*')
+      .eq('restaurant_id', restaurant.id)
       .order('created_at', { ascending: false });
 
     if (ordersData) {
@@ -114,25 +118,29 @@ export function OrderManagement() {
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
+    if (!restaurant?.id) return;
     if (restaurant?.is_payment_overdue) {
       alert('Cannot process orders. Your subscription payment is overdue. Please renew your subscription.');
       return;
     }
-    await supabase.from('orders').update({ status }).eq('id', orderId);
+    await supabase.from('orders').update({ status }).eq('id', orderId).eq('restaurant_id', restaurant.id);
     loadOrders();
   };
 
   const updatePaymentConfirmation = async (orderId: string, confirmed: boolean) => {
-    await supabase.from('orders').update({ payment_confirmed: confirmed }).eq('id', orderId);
+    if (!restaurant?.id) return;
+    await supabase.from('orders').update({ payment_confirmed: confirmed }).eq('id', orderId).eq('restaurant_id', restaurant.id);
     loadOrders();
   };
 
   const assignRider = async (orderId: string, riderId: string) => {
+    if (!restaurant?.id) return;
     try {
       await supabase
         .from('orders')
         .update({ assigned_rider_id: riderId })
-        .eq('id', orderId);
+        .eq('id', orderId)
+        .eq('restaurant_id', restaurant.id);
 
       const tokenValue = `${orderId}-rider-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const expiresAt = new Date();
@@ -145,7 +153,9 @@ export function OrderManagement() {
         expires_at: expiresAt.toISOString(),
       });
 
-      const riderUrl = `${window.location.origin}/rider/${tokenValue}`;
+      const riderUrl = restaurant?.slug
+        ? `${window.location.origin}/${restaurant.slug}/rider/${tokenValue}`
+        : `${window.location.origin}/rider/${tokenValue}`;
       const rider = riders.find(r => r.id === riderId);
 
       if (rider) {
