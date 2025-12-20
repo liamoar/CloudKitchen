@@ -1,7 +1,7 @@
 export type UserRole = 'SUPER_ADMIN' | 'RESTRO_OWNER' | 'CUSTOMER';
 export type OfferType = 'FLAT' | 'PERCENT';
 export type OfferApplicable = 'PRODUCT' | 'BUNDLE' | 'CART';
-export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY_FOR_DELIVERY' | 'DISPATCHED' | 'DELIVERED' | 'CANCELLED';
+export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY_FOR_DELIVERY' | 'DISPATCHED' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED' | 'RETURNED';
 export type OrderItemType = 'PRODUCT' | 'BUNDLE';
 export type PaymentMethod = 'COD' | 'BANK_TRANSFER';
 
@@ -107,6 +107,9 @@ export interface Order {
   payment_method: PaymentMethod;
   payment_confirmed: boolean;
   status: OrderStatus;
+  is_self_pickup: boolean;
+  assigned_rider_id: string | null;
+  delivery_notes: string | null;
   created_at: string;
 }
 

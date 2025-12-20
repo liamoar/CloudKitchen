@@ -111,11 +111,11 @@ export function OrderManagement() {
 
     if (viewMode === 'new') {
       filtered = filtered.filter(
-        (order) => !['DELIVERED', 'CANCELLED'].includes(order.status)
+        (order) => !['DELIVERED', 'CANCELLED', 'RETURNED'].includes(order.status)
       );
     } else {
       filtered = filtered.filter(
-        (order) => ['DELIVERED', 'CANCELLED'].includes(order.status)
+        (order) => ['DELIVERED', 'CANCELLED', 'RETURNED'].includes(order.status)
       );
     }
 
@@ -202,10 +202,12 @@ export function OrderManagement() {
       PREPARING: { icon: ChefHat, color: 'text-orange-500', bg: 'bg-orange-50', label: 'Preparing' },
       READY_FOR_DELIVERY: { icon: Package, color: 'text-purple-500', bg: 'bg-purple-50', label: 'Ready' },
       DISPATCHED: { icon: Truck, color: 'text-indigo-500', bg: 'bg-indigo-50', label: 'Dispatched' },
+      OUT_FOR_DELIVERY: { icon: Truck, color: 'text-blue-600', bg: 'bg-blue-50', label: 'Out for Delivery' },
       DELIVERED: { icon: Home, color: 'text-green-500', bg: 'bg-green-50', label: 'Delivered' },
       CANCELLED: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-50', label: 'Cancelled' },
+      RETURNED: { icon: AlertTriangle, color: 'text-gray-500', bg: 'bg-gray-50', label: 'Returned' },
     };
-    return configs[status];
+    return configs[status] || configs.PENDING;
   };
 
   const getNextActions = (status: OrderStatus) => {
@@ -221,6 +223,8 @@ export function OrderManagement() {
     } else if (status === 'READY_FOR_DELIVERY') {
       actions.push({ label: 'Dispatch', status: 'DISPATCHED', color: 'bg-indigo-500 hover:bg-indigo-600' });
     } else if (status === 'DISPATCHED') {
+      actions.push({ label: 'Out for Delivery', status: 'OUT_FOR_DELIVERY', color: 'bg-blue-600 hover:bg-blue-700' });
+    } else if (status === 'OUT_FOR_DELIVERY') {
       actions.push({ label: 'Mark Delivered', status: 'DELIVERED', color: 'bg-green-500 hover:bg-green-600' });
     }
 
@@ -262,7 +266,7 @@ export function OrderManagement() {
                 : 'bg-white text-gray-700 hover:bg-gray-50'
             }`}
           >
-            New Orders ({orders.filter(o => !['DELIVERED', 'CANCELLED'].includes(o.status)).length})
+            New Orders ({orders.filter(o => !['DELIVERED', 'CANCELLED', 'RETURNED'].includes(o.status)).length})
           </button>
           <button
             onClick={() => setViewMode('history')}
@@ -272,7 +276,7 @@ export function OrderManagement() {
                 : 'bg-white text-gray-700 hover:bg-gray-50'
             }`}
           >
-            History ({orders.filter(o => ['DELIVERED', 'CANCELLED'].includes(o.status)).length})
+            History ({orders.filter(o => ['DELIVERED', 'CANCELLED', 'RETURNED'].includes(o.status)).length})
           </button>
         </div>
       </div>

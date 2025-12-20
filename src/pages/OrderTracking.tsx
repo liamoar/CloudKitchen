@@ -71,7 +71,7 @@ export function OrderTracking() {
       PENDING: { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-100', label: 'Order Received' },
       CONFIRMED: { icon: CheckCircle, color: 'text-blue-600', bg: 'bg-blue-100', label: 'Order Confirmed' },
       PREPARING: { icon: Package, color: 'text-orange-600', bg: 'bg-orange-100', label: 'Preparing Your Order' },
-      READY_FOR_DELIVERY: { icon: Package, color: 'text-purple-600', bg: 'bg-purple-100', label: 'Ready for Delivery' },
+      READY_FOR_DELIVERY: { icon: Package, color: 'text-purple-600', bg: 'bg-purple-100', label: 'Ready for Pickup' },
       DISPATCHED: { icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-100', label: 'Order Dispatched' },
       OUT_FOR_DELIVERY: { icon: Truck, color: 'text-blue-600', bg: 'bg-blue-100', label: 'Out for Delivery' },
       DELIVERED: { icon: Home, color: 'text-green-600', bg: 'bg-green-100', label: 'Delivered' },
@@ -82,9 +82,9 @@ export function OrderTracking() {
   };
 
   const getStatusProgress = (status: string) => {
-    const order = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_DELIVERY', 'DISPATCHED', 'OUT_FOR_DELIVERY', 'DELIVERED'];
-    const currentIndex = order.indexOf(status);
-    return currentIndex >= 0 ? ((currentIndex + 1) / order.length) * 100 : 0;
+    const orderFlow = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_DELIVERY', 'DISPATCHED', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+    const currentIndex = orderFlow.indexOf(status);
+    return currentIndex >= 0 ? ((currentIndex + 1) / orderFlow.length) * 100 : 0;
   };
 
   if (loading) {
@@ -142,7 +142,8 @@ export function OrderTracking() {
                 <p className="text-gray-600 mt-1">
                   {order.status === 'DELIVERED' && 'Your order has been delivered successfully!'}
                   {order.status === 'OUT_FOR_DELIVERY' && 'Your order is on the way!'}
-                  {order.status === 'DISPATCHED' && 'Your order has been dispatched'}
+                  {order.status === 'DISPATCHED' && 'Your order has been dispatched to the delivery partner'}
+                  {order.status === 'READY_FOR_DELIVERY' && 'Your order is ready and waiting for pickup'}
                   {order.status === 'PREPARING' && 'We are preparing your order'}
                   {order.status === 'CONFIRMED' && 'Your order has been confirmed'}
                   {order.status === 'PENDING' && 'We have received your order'}
