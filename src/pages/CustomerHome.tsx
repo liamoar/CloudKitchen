@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ShoppingCart as CartIcon, X, Plus, Minus, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useCart } from '../contexts/CartContext';
 import type { Product, Bundle, RestaurantSettings, ProductCategory, FeaturedProduct } from '../lib/database.types';
 
 export function CustomerHome() {
+  const { restaurantSlug } = useParams();
+  const navigate = useNavigate();
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [settings, setSettings] = useState<RestaurantSettings | null>(null);
@@ -33,12 +37,30 @@ export function CustomerHome() {
 
   const loadData = async () => {
     try {
+      if (!restaurantSlug) {
+        navigate('/');
+        return;
+      }
+
+      const { data: restaurant } = await supabase
+        .from('restaurants')
+        .select('id')
+        .eq('slug', restaurantSlug)
+        .maybeSingle();
+
+      if (!restaurant) {
+        navigate('/');
+        return;
+      }
+
+      setRestaurantId(restaurant.id);
+
       const [productsRes, bundlesRes, settingsRes, categoriesRes, featuredRes] = await Promise.all([
-        supabase.from('products').select('*').eq('is_active', true),
-        supabase.from('bundles').select('*').eq('is_active', true),
-        supabase.from('restaurant_settings').select('*').limit(1).maybeSingle(),
-        supabase.from('product_categories').select('*').eq('is_active', true).order('display_order'),
-        supabase.from('featured_products').select('product_id'),
+        supabase.from('products').select('*').eq('is_active', true).eq('restaurant_id', restaurant.id),
+        supabase.from('bundles').select('*').eq('is_active', true).eq('restaurant_id', restaurant.id),
+        supabase.from('restaurant_settings').select('*').eq('restaurant_id', restaurant.id).maybeSingle(),
+        supabase.from('product_categories').select('*').eq('is_active', true).eq('restaurant_id', restaurant.id).order('display_order'),
+        supabase.from('featured_products').select('product_id').eq('restaurant_id', restaurant.id),
       ]);
 
       if (productsRes.data) setProducts(productsRes.data);
@@ -61,6 +83,7 @@ export function CustomerHome() {
         .from('orders')
         .insert({
           user_id: null,
+          restaurant_id: restaurantId,
           phone_number: checkoutForm.phone,
           delivery_address: `${checkoutForm.address}, ${checkoutForm.city}`,
           total_amount: total,
@@ -99,7 +122,19 @@ export function CustomerHome() {
 
   const featuredProducts = products.filter((p) => featuredProductIds.includes(p.id));
 
-  const currencySymbol = settings?.currency === 'USD' ? '$' : settings?.currency === 'EUR' ? '€' : settings?.currency === 'GBP' ? '£' : '₹';
+  const getCurrencySymbol = (currency: string | undefined) => {
+    switch (currency) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'INR': return '₹';
+      case 'NPR': return 'रू';
+      case 'AED': return 'د.إ';
+      default: return '$';
+    }
+  };
+
+  const currencySymbol = getCurrencySymbol(settings?.currency);
 
   if (loading) {
     return (

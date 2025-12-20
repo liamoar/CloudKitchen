@@ -1,10 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
+import { LandingPage } from './pages/LandingPage';
 import { CustomerHome } from './pages/CustomerHome';
-import { RestroAdminLogin } from './pages/RestroAdminLogin';
+import { SuperAdminLogin } from './pages/SuperAdminLogin';
+import { SuperAdminDashboard } from './pages/SuperAdminDashboard';
 import { RestroAdminDashboard } from './pages/RestroAdminDashboard';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string }) {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -15,8 +17,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user || (user.role !== 'RESTRO_OWNER' && user.role !== 'SUPER_ADMIN')) {
-    return <Navigate to="/restro-admin" replace />;
+  if (!user) {
+    return <Navigate to="/backend-system" replace />;
+  }
+
+  if (requiredRole && user.role !== requiredRole) {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
@@ -26,10 +32,19 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<CustomerHome />} />
-        <Route path="/restro-admin" element={<RestroAdminLogin />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/backend-system" element={<SuperAdminLogin />} />
         <Route
-          path="/restro-admin/dashboard"
+          path="/backend-system/dashboard"
+          element={
+            <ProtectedRoute requiredRole="SUPER_ADMIN">
+              <SuperAdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/:restaurantSlug" element={<CustomerHome />} />
+        <Route
+          path="/:restaurantSlug/admin"
           element={
             <ProtectedRoute>
               <RestroAdminDashboard />

@@ -1,28 +1,51 @@
 import { useState, useEffect } from 'react';
-import { Search, Clock, CheckCircle, ChefHat, Package, Truck, Home, XCircle } from 'lucide-react';
+import { Search, Clock, CheckCircle, ChefHat, Package, Truck, Home, XCircle, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Order, OrderItem, OrderStatus, PaymentMethod } from '../../lib/database.types';
 
 interface OrderWithItems extends Order {
   items: OrderItem[];
 }
 
+interface Restaurant {
+  is_payment_overdue: boolean;
+  status: string;
+}
+
 export function OrderManagement() {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchPhone, setSearchPhone] = useState('');
   const [viewMode, setViewMode] = useState<'new' | 'history'>('new');
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
 
   useEffect(() => {
+    loadRestaurantStatus();
     loadOrders();
     const interval = setInterval(loadOrders, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     filterOrders();
   }, [orders, searchPhone, viewMode]);
+
+  const loadRestaurantStatus = async () => {
+    if (!user?.id) return;
+
+    const { data } = await supabase
+      .from('restaurants')
+      .select('is_payment_overdue, status')
+      .eq('owner_id', user.id)
+      .maybeSingle();
+
+    if (data) {
+      setRestaurant(data);
+    }
+  };
 
   const loadOrders = async () => {
     const { data: ordersData } = await supabase
@@ -68,6 +91,10 @@ export function OrderManagement() {
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
+    if (restaurant?.is_payment_overdue) {
+      alert('Cannot process orders. Your subscription payment is overdue. Please renew your subscription.');
+      return;
+    }
     await supabase.from('orders').update({ status }).eq('id', orderId);
     loadOrders();
   };
@@ -115,6 +142,19 @@ export function OrderManagement() {
 
   return (
     <div className="space-y-6">
+      {restaurant?.is_payment_overdue && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertTriangle className="text-red-600 flex-shrink-0" size={24} />
+          <div>
+            <p className="text-red-900 font-semibold">Subscription Payment Overdue</p>
+            <p className="text-red-700 text-sm mt-1">
+              Your subscription payment is overdue. You cannot process orders until payment is confirmed.
+              Please go to the Subscription tab to renew.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-gray-800">Order Management</h2>
         <div className="flex gap-2">
