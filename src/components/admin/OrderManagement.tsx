@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, Clock, CheckCircle, ChefHat, Package, Truck, Home, XCircle, AlertTriangle, User } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatCurrency } from '../../lib/utils';
 import type { Order, OrderItem, OrderStatus, PaymentMethod } from '../../lib/database.types';
 
 interface OrderWithItems extends Order {
@@ -13,6 +14,7 @@ interface Restaurant {
   slug: string;
   is_payment_overdue: boolean;
   status: string;
+  restaurant_currency: string;
 }
 
 interface Rider {
@@ -59,7 +61,7 @@ export function OrderManagement() {
 
     const { data } = await supabase
       .from('restaurants')
-      .select('id, slug, is_payment_overdue, status')
+      .select('id, slug, is_payment_overdue, status, restaurant_currency')
       .eq('owner_id', user.id)
       .maybeSingle();
 
@@ -340,8 +342,13 @@ export function OrderManagement() {
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-orange-600">
-                      ₹{order.total_amount.toFixed(2)}
+                      {formatCurrency(order.total_amount, restaurant?.restaurant_currency || 'AED')}
                     </p>
+                    {order.delivery_fee > 0 && !order.is_self_pickup && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        (includes {formatCurrency(order.delivery_fee, restaurant?.restaurant_currency || 'AED')} delivery fee)
+                      </p>
+                    )}
                     <div className="mt-2 space-y-1">
                       <p className="text-xs text-gray-600">
                         {order.payment_method === 'COD' ? 'Cash on Delivery' : 'Bank Transfer'}
@@ -375,7 +382,7 @@ export function OrderManagement() {
                           )}
                         </span>
                         <span className="text-orange-600 font-medium">
-                          ₹{(item.price * item.quantity).toFixed(2)}
+                          {formatCurrency(item.price * item.quantity, restaurant?.restaurant_currency || 'AED')}
                         </span>
                       </li>
                     ))}

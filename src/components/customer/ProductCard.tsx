@@ -1,12 +1,14 @@
 import { Plus } from 'lucide-react';
 import type { Product } from '../../lib/database.types';
 import { useCart } from '../../contexts/CartContext';
+import { formatCurrency } from '../../lib/utils';
 
 interface ProductCardProps {
   product: Product;
+  currency?: string;
 }
 
-export function ProductCard({ product }: ProductCardProps) {
+export function ProductCard({ product, currency = 'AED' }: ProductCardProps) {
   const { addItem } = useCart();
 
   const handleAddToCart = () => {
@@ -27,7 +29,7 @@ export function ProductCard({ product }: ProductCardProps) {
         <h3 className="font-semibold text-lg text-gray-800">{product.name}</h3>
         <p className="text-sm text-gray-600 mt-1 line-clamp-2">{product.description}</p>
         <div className="flex items-center justify-between mt-4">
-          <span className="text-xl font-bold text-orange-600">₹{product.price}</span>
+          <span className="text-xl font-bold text-orange-600">{formatCurrency(product.price, currency)}</span>
           <button
             onClick={handleAddToCart}
             className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"

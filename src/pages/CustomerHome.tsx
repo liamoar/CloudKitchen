@@ -18,6 +18,7 @@ export function CustomerHome() {
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [currency, setCurrency] = useState<string>('AED');
   const { items, addItem, removeItem, updateQuantity, clearCart, total } = useCart();
 
   const [checkoutForm, setCheckoutForm] = useState({
@@ -63,7 +64,7 @@ export function CustomerHome() {
 
       const { data: restaurant } = await supabase
         .from('restaurants')
-        .select('id')
+        .select('id, restaurant_currency')
         .eq('slug', restaurantSlug)
         .maybeSingle();
 
@@ -73,6 +74,7 @@ export function CustomerHome() {
       }
 
       setRestaurantId(restaurant.id);
+      setCurrency(restaurant.restaurant_currency || 'AED');
 
       const [productsRes, bundlesRes, settingsRes, categoriesRes, featuredRes] = await Promise.all([
         supabase.from('products').select('*').eq('is_active', true).eq('restaurant_id', restaurant.id),

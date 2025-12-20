@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Save, AlertCircle } from 'lucide-react';
+import { Save, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatCurrency, type DeliveryFeeTier } from '../../lib/utils';
 import type { RestaurantSettings } from '../../lib/database.types';
 
 const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -27,6 +28,9 @@ export function RestaurantSettings() {
     opening_time: {} as Record<string, { open: string; close: string }>,
   });
 
+  const [minimumOrderAmount, setMinimumOrderAmount] = useState<number>(0);
+  const [deliveryFeeTiers, setDeliveryFeeTiers] = useState<DeliveryFeeTier[]>([]);
+
   useEffect(() => {
     loadRestaurantId();
   }, [user?.id]);
@@ -41,10 +45,17 @@ export function RestaurantSettings() {
     if (!user?.id) return;
     const { data } = await supabase
       .from('restaurants')
-      .select('id')
+      .select('id, minimum_order_amount, delivery_fee_tiers, restaurant_currency')
       .eq('owner_id', user.id)
       .maybeSingle();
-    if (data) setRestaurantId(data.id);
+    if (data) {
+      setRestaurantId(data.id);
+      setMinimumOrderAmount(data.minimum_order_amount || 0);
+      setDeliveryFeeTiers(data.delivery_fee_tiers || []);
+      if (data.restaurant_currency) {
+        setFormData(prev => ({ ...prev, currency: data.restaurant_currency }));
+      }
+    }
   };
 
   const loadSettings = async () => {
@@ -114,13 +125,25 @@ export function RestaurantSettings() {
     setMessage('');
 
     try {
-      const { error } = await supabase
+      const settingsError = await supabase
         .from('restaurant_settings')
         .update(formData)
         .eq('id', settings.id)
         .eq('restaurant_id', restaurantId);
 
-      if (error) throw error;
+      if (settingsError.error) throw settingsError.error;
+
+      const restaurantError = await supabase
+        .from('restaurants')
+        .update({
+          minimum_order_amount: minimumOrderAmount,
+          delivery_fee_tiers: deliveryFeeTiers,
+          restaurant_currency: formData.currency,
+        })
+        .eq('id', restaurantId);
+
+      if (restaurantError.error) throw restaurantError.error;
+
       setMessage('Settings saved successfully!');
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
@@ -141,6 +164,27 @@ export function RestaurantSettings() {
         },
       },
     });
+  };
+
+  const addDeliveryFeeTier = () => {
+    setDeliveryFeeTiers([
+      ...deliveryFeeTiers,
+      { min_amount: 0, max_amount: null, fee: 0 },
+    ]);
+  };
+
+  const updateDeliveryFeeTier = (
+    index: number,
+    field: keyof DeliveryFeeTier,
+    value: number | null
+  ) => {
+    const updated = [...deliveryFeeTiers];
+    updated[index] = { ...updated[index], [field]: value };
+    setDeliveryFeeTiers(updated);
+  };
+
+  const removeDeliveryFeeTier = (index: number) => {
+    setDeliveryFeeTiers(deliveryFeeTiers.filter((_, i) => i !== index));
   };
 
   if (loading) {
@@ -256,6 +300,120 @@ export function RestaurantSettings() {
               />
               <span className="text-sm text-gray-700">Enable Product Categories</span>
             </label>
+          </div>
+        </div>
+
+        <div className="border-t pt-6">
+          <h3 className="font-semibold text-gray-800 mb-4">Order Settings</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Minimum Order Amount ({formData.currency})
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={minimumOrderAmount}
+                onChange={(e) => setMinimumOrderAmount(parseFloat(e.target.value) || 0)}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="0 = No minimum"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Set to 0 to disable minimum order requirement
+              </p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Delivery Fee Tiers
+                </label>
+                <button
+                  type="button"
+                  onClick={addDeliveryFeeTier}
+                  className="flex items-center gap-1 px-3 py-1 bg-orange-500 text-white rounded text-sm hover:bg-orange-600 transition-colors"
+                >
+                  <Plus size={16} />
+                  Add Tier
+                </button>
+              </div>
+              {deliveryFeeTiers.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">
+                  No delivery fee tiers configured. Click "Add Tier" to create one.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {deliveryFeeTiers.map((tier, index) => (
+                    <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-1 grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-xs text-gray-600 block mb-1">Min Amount</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={tier.min_amount}
+                            onChange={(e) =>
+                              updateDeliveryFeeTier(
+                                index,
+                                'min_amount',
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            className="w-full px-2 py-1 border rounded text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600 block mb-1">
+                            Max Amount (blank = above)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={tier.max_amount || ''}
+                            onChange={(e) =>
+                              updateDeliveryFeeTier(
+                                index,
+                                'max_amount',
+                                e.target.value ? parseFloat(e.target.value) : null
+                              )
+                            }
+                            className="w-full px-2 py-1 border rounded text-sm"
+                            placeholder="∞"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600 block mb-1">Fee</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={tier.fee}
+                            onChange={(e) =>
+                              updateDeliveryFeeTier(index, 'fee', parseFloat(e.target.value) || 0)
+                            }
+                            className="w-full px-2 py-1 border rounded text-sm"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeDeliveryFeeTier(index)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                        title="Remove tier"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-gray-500 mt-2">
+                Example: 0-30 = 8 fee, 30-50 = 5 fee, 50+ = 0 fee (free delivery)
+              </p>
+            </div>
           </div>
         </div>
 

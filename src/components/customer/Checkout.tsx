@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, CheckCircle, Truck, Store as StoreIcon } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Truck, Store as StoreIcon, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import { supabase } from '../../lib/supabase';
 import { useParams } from 'react-router-dom';
+import { formatCurrency, calculateDeliveryFee, validateMinimumOrder, type DeliveryFeeTier } from '../../lib/utils';
 
 interface CheckoutProps {
   onBack: () => void;
@@ -20,6 +21,11 @@ export function Checkout({ onBack }: CheckoutProps) {
   const [restaurantId, setRestaurantId] = useState<string>('');
   const [deliveryType, setDeliveryType] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'BANK_TRANSFER'>('COD');
+  const [currency, setCurrency] = useState<string>('AED');
+  const [minimumOrderAmount, setMinimumOrderAmount] = useState<number>(0);
+  const [deliveryFeeTiers, setDeliveryFeeTiers] = useState<DeliveryFeeTier[]>([]);
+  const [deliveryFee, setDeliveryFee] = useState<number>(0);
+  const [validationError, setValidationError] = useState<string>('');
 
   const [formData, setFormData] = useState({
     name: user?.name || '',
@@ -35,26 +41,53 @@ export function Checkout({ onBack }: CheckoutProps) {
 
       const { data } = await supabase
         .from('restaurants')
-        .select('id')
+        .select('id, restaurant_currency, minimum_order_amount, delivery_fee_tiers')
         .eq('slug', restaurantSlug)
         .maybeSingle();
 
       if (data) {
         setRestaurantId(data.id);
+        setCurrency(data.restaurant_currency || 'AED');
+        setMinimumOrderAmount(data.minimum_order_amount || 0);
+        setDeliveryFeeTiers(data.delivery_fee_tiers || []);
       }
     };
 
     loadRestaurant();
   }, [restaurantSlug]);
 
+  useEffect(() => {
+    if (deliveryType === 'DELIVERY' && deliveryFeeTiers.length > 0) {
+      const fee = calculateDeliveryFee(total, deliveryFeeTiers);
+      setDeliveryFee(fee);
+    } else {
+      setDeliveryFee(0);
+    }
+
+    const validation = validateMinimumOrder(total, minimumOrderAmount);
+    if (!validation.valid) {
+      setValidationError(validation.message || '');
+    } else {
+      setValidationError('');
+    }
+  }, [total, deliveryType, deliveryFeeTiers, minimumOrderAmount]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      const validation = validateMinimumOrder(total, minimumOrderAmount);
+      if (!validation.valid) {
+        alert(validation.message);
+        return;
+      }
+
       const deliveryAddress = deliveryType === 'DELIVERY'
         ? `${formData.address}, ${formData.city}`
         : 'Self Pickup';
+
+      const finalTotal = total + deliveryFee;
 
       const { data: order, error: orderError } = await supabase
         .from('orders')
@@ -63,8 +96,9 @@ export function Checkout({ onBack }: CheckoutProps) {
           restaurant_id: restaurantId,
           phone_number: formData.phone,
           delivery_address: deliveryAddress,
-          total_amount: total,
+          total_amount: finalTotal,
           discount_applied: 0,
+          delivery_fee: deliveryFee,
           status: 'PENDING',
           payment_method: paymentMethod,
           is_self_pickup: deliveryType === 'PICKUP',
@@ -331,15 +365,47 @@ export function Checkout({ onBack }: CheckoutProps) {
           />
         </div>
 
+        {validationError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+            <div>
+              <p className="text-red-900 font-semibold text-sm">{validationError}</p>
+              <p className="text-red-700 text-xs mt-1">
+                Add more items to your cart to proceed with checkout.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="pt-4 border-t">
-          <div className="flex justify-between items-center mb-4">
-            <span className="text-lg font-semibold text-gray-800">Order Total</span>
-            <span className="text-2xl font-bold text-orange-600">₹{total.toFixed(2)}</span>
+          <div className="space-y-2 mb-4">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-700">Subtotal</span>
+              <span className="font-medium text-gray-900">{formatCurrency(total, currency)}</span>
+            </div>
+            {deliveryType === 'DELIVERY' && deliveryFee > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700">Delivery Fee</span>
+                <span className="font-medium text-gray-900">{formatCurrency(deliveryFee, currency)}</span>
+              </div>
+            )}
+            {deliveryType === 'DELIVERY' && deliveryFee === 0 && deliveryFeeTiers.length > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700">Delivery Fee</span>
+                <span className="font-medium text-green-600">FREE</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center pt-2 border-t">
+              <span className="text-lg font-semibold text-gray-800">Total</span>
+              <span className="text-2xl font-bold text-orange-600">
+                {formatCurrency(total + deliveryFee, currency)}
+              </span>
+            </div>
           </div>
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition-colors disabled:bg-gray-400"
+            disabled={loading || !!validationError}
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {loading ? 'Placing Order...' : 'Place Order'}
           </button>

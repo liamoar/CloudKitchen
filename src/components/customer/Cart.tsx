@@ -1,11 +1,13 @@
 import { X, Minus, Plus, ShoppingCart } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
+import { formatCurrency } from '../../lib/utils';
 
 interface CartProps {
   onCheckout: () => void;
+  currency?: string;
 }
 
-export function Cart({ onCheckout }: CartProps) {
+export function Cart({ onCheckout, currency = 'AED' }: CartProps) {
   const { items, removeItem, updateQuantity, total } = useCart();
 
   if (items.length === 0) {
@@ -30,7 +32,7 @@ export function Cart({ onCheckout }: CartProps) {
               <p className="text-sm text-gray-500">
                 {item.type === 'BUNDLE' && 'Combo Deal'}
               </p>
-              <p className="text-orange-600 font-semibold mt-1">₹{item.price}</p>
+              <p className="text-orange-600 font-semibold mt-1">{formatCurrency(item.price, currency)}</p>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -59,7 +61,7 @@ export function Cart({ onCheckout }: CartProps) {
       <div className="p-4 border-t bg-gray-50">
         <div className="flex justify-between items-center mb-4">
           <span className="text-lg font-semibold text-gray-800">Total</span>
-          <span className="text-2xl font-bold text-orange-600">₹{total.toFixed(2)}</span>
+          <span className="text-2xl font-bold text-orange-600">{formatCurrency(total, currency)}</span>
         </div>
         <button
           onClick={onCheckout}

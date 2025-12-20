@@ -1,12 +1,14 @@
 import { Plus, Package } from 'lucide-react';
 import type { Bundle } from '../../lib/database.types';
 import { useCart } from '../../contexts/CartContext';
+import { formatCurrency } from '../../lib/utils';
 
 interface BundleCardProps {
   bundle: Bundle;
+  currency?: string;
 }
 
-export function BundleCard({ bundle }: BundleCardProps) {
+export function BundleCard({ bundle, currency = 'AED' }: BundleCardProps) {
   const { addItem } = useCart();
 
   const handleAddToCart = () => {
@@ -32,7 +34,7 @@ export function BundleCard({ bundle }: BundleCardProps) {
         </div>
         <p className="text-sm text-gray-600 mt-1 line-clamp-2">{bundle.description}</p>
         <div className="flex items-center justify-between mt-4">
-          <span className="text-xl font-bold text-green-600">₹{bundle.fixed_price}</span>
+          <span className="text-xl font-bold text-green-600">{formatCurrency(bundle.fixed_price, currency)}</span>
           <button
             onClick={handleAddToCart}
             className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
