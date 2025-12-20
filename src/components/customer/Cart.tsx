@@ -17,6 +17,8 @@ export function Cart({ onCheckout, currency = 'AED' }: CartProps) {
   const [deliveryFeeTiers, setDeliveryFeeTiers] = useState<DeliveryFeeTier[]>([]);
   const [deliveryFee, setDeliveryFee] = useState<number>(0);
 
+  const [loadedCurrency, setLoadedCurrency] = useState<string>('AED');
+
   useEffect(() => {
     const loadRestaurantSettings = async () => {
       if (!restaurantSlug) return;
@@ -30,6 +32,7 @@ export function Cart({ onCheckout, currency = 'AED' }: CartProps) {
       if (data) {
         setMinimumOrderAmount(data.minimum_order_amount || 0);
         setDeliveryFeeTiers(data.delivery_fee_tiers || []);
+        setLoadedCurrency(data.restaurant_currency || 'AED');
       }
     };
 
@@ -43,7 +46,7 @@ export function Cart({ onCheckout, currency = 'AED' }: CartProps) {
     }
   }, [total, deliveryFeeTiers]);
 
-  const validation = validateMinimumOrder(total, minimumOrderAmount);
+  const validation = validateMinimumOrder(total, minimumOrderAmount, loadedCurrency);
 
   if (items.length === 0) {
     return (

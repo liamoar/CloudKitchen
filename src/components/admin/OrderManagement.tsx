@@ -359,6 +359,12 @@ export function OrderManagement() {
                     <p className="text-sm text-gray-700">
                       <strong>{order.is_self_pickup ? 'Pickup Location' : 'Address'}:</strong> {order.delivery_address}
                     </p>
+                    {order.delivery_notes && (
+                      <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                        <p className="text-xs font-semibold text-yellow-900">Delivery Notes:</p>
+                        <p className="text-xs text-yellow-800">{order.delivery_notes}</p>
+                      </div>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-orange-600">

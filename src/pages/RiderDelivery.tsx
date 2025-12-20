@@ -13,6 +13,8 @@ interface Order {
   created_at: string;
   payment_method: string;
   payment_confirmed: boolean;
+  delivery_notes: string | null;
+  delivery_fee: number;
 }
 
 interface OrderItem {
@@ -107,6 +109,30 @@ export function RiderDelivery() {
     }
   };
 
+  const updatePaymentConfirmation = async (confirmed: boolean) => {
+    if (!order) return;
+
+    setUpdating(true);
+    setSuccess('');
+    setError('');
+
+    try {
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ payment_confirmed: confirmed })
+        .eq('id', order.id);
+
+      if (updateError) throw updateError;
+
+      setSuccess(`Payment ${confirmed ? 'confirmed' : 'marked as pending'}!`);
+      await loadOrderData();
+    } catch (err) {
+      setError('Failed to update payment status');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const getAvailableActions = (status: string) => {
     const actions: { label: string; status: string; color: string }[] = [];
 
@@ -191,13 +217,13 @@ export function RiderDelivery() {
               <div className="border-t pt-6">
                 <div className="flex items-start gap-3 mb-4">
                   <MapPin className="text-indigo-600 flex-shrink-0" size={24} />
-                  <div>
+                  <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 mb-1">Delivery Address</h3>
                     <p className="text-gray-700">{order.delivery_address}</p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 mb-4">
                   <Phone className="text-indigo-600 flex-shrink-0" size={24} />
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-1">Customer Phone</h3>
@@ -206,6 +232,13 @@ export function RiderDelivery() {
                     </a>
                   </div>
                 </div>
+
+                {order.delivery_notes && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-900 mb-2">Delivery Instructions</h3>
+                    <p className="text-gray-700 text-sm">{order.delivery_notes}</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -234,25 +267,43 @@ export function RiderDelivery() {
                 <DollarSign className="text-indigo-600 flex-shrink-0" size={24} />
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900 mb-2">Payment Details</h3>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                    <div className="flex justify-between items-center">
                       <span className="text-gray-700">Payment Method:</span>
                       <span className="font-medium text-gray-900">
                         {order.payment_method === 'COD' ? 'Cash on Delivery' : 'Bank Transfer'}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center mb-2">
+                    <div className="flex justify-between items-center">
                       <span className="text-gray-700">Payment Status:</span>
                       <span className={`font-medium ${order.payment_confirmed ? 'text-green-600' : 'text-yellow-600'}`}>
                         {order.payment_confirmed ? 'Confirmed' : 'Pending'}
                       </span>
                     </div>
+                    {order.delivery_fee > 0 && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-600">Delivery Fee:</span>
+                        <span className="text-gray-900">AED {order.delivery_fee.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-center pt-2 border-t">
                       <span className="text-lg font-semibold text-gray-900">Total Amount:</span>
                       <span className="text-2xl font-bold text-indigo-600">
                         AED {order.total_amount.toFixed(2)}
                       </span>
                     </div>
+
+                    {order.payment_method === 'COD' && !order.payment_confirmed && order.status === 'OUT_FOR_DELIVERY' && (
+                      <div className="pt-3 border-t">
+                        <button
+                          onClick={() => updatePaymentConfirmation(true)}
+                          disabled={updating}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-medium transition-colors disabled:bg-gray-400"
+                        >
+                          {updating ? 'Updating...' : 'Confirm Cash Payment Collected'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
