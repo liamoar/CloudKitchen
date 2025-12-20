@@ -1,36 +1,43 @@
-import { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
-import { CustomerView } from './pages/CustomerView';
-import { LoginPage } from './pages/LoginPage';
-import { OwnerDashboard } from './pages/OwnerDashboard';
+import { CustomerHome } from './pages/CustomerHome.tsx';
+import { RestroAdminLogin } from './pages/RestroAdminLogin.tsx';
+import { RestroAdminDashboard } from './pages/RestroAdminDashboard.tsx';
 
-function App() {
-  const { user } = useAuth();
-  const [showLogin, setShowLogin] = useState(false);
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
 
-  if (showLogin && !user) {
+  if (loading) {
     return (
-      <LoginPage
-        onBack={() => setShowLogin(false)}
-        onSuccess={() => setShowLogin(false)}
-      />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-lg text-gray-600">Loading...</div>
+      </div>
     );
   }
 
-  if (user && (user.role === 'RESTRO_OWNER' || user.role === 'SUPER_ADMIN')) {
-    return <OwnerDashboard />;
+  if (!user || (user.role !== 'RESTRO_OWNER' && user.role !== 'SUPER_ADMIN')) {
+    return <Navigate to="/restro-admin" replace />;
   }
 
+  return <>{children}</>;
+}
+
+function App() {
   return (
-    <>
-      <CustomerView />
-      <button
-        onClick={() => setShowLogin(true)}
-        className="fixed bottom-6 right-6 bg-gray-800 hover:bg-gray-900 text-white px-6 py-3 rounded-full shadow-lg font-medium transition-colors"
-      >
-        Owner Login
-      </button>
-    </>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<CustomerHome />} />
+        <Route path="/restro-admin" element={<RestroAdminLogin />} />
+        <Route
+          path="/restro-admin/dashboard"
+          element={
+            <ProtectedRoute>
+              <RestroAdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

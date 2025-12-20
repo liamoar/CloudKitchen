@@ -1,8 +1,9 @@
 export type UserRole = 'SUPER_ADMIN' | 'RESTRO_OWNER' | 'CUSTOMER';
 export type OfferType = 'FLAT' | 'PERCENT';
 export type OfferApplicable = 'PRODUCT' | 'BUNDLE' | 'CART';
-export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'COMPLETED';
+export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY_FOR_DELIVERY' | 'DISPATCHED' | 'DELIVERED' | 'CANCELLED';
 export type OrderItemType = 'PRODUCT' | 'BUNDLE';
+export type PaymentMethod = 'COD' | 'BANK_TRANSFER';
 
 export interface User {
   id: string;
@@ -30,6 +31,43 @@ export interface Product {
   price: number;
   stock_quantity: number;
   is_active: boolean;
+  image_url: string | null;
+  category_id: string | null;
+  created_at: string;
+}
+
+export interface RestaurantSettings {
+  id: string;
+  user_id: string;
+  name: string;
+  address: string;
+  city: string;
+  phone: string;
+  email: string;
+  currency: string;
+  show_product_image: boolean;
+  enable_stock_management: boolean;
+  enable_categories: boolean;
+  opening_time: Record<string, { open: string; close: string }>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductCategory {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface FeaturedProduct {
+  id: string;
+  user_id: string;
+  product_id: string;
+  display_order: number;
   created_at: string;
 }
 
@@ -66,6 +104,8 @@ export interface Order {
   delivery_address: string;
   total_amount: number;
   discount_applied: number;
+  payment_method: PaymentMethod;
+  payment_confirmed: boolean;
   status: OrderStatus;
   created_at: string;
 }
