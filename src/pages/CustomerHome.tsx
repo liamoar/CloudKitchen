@@ -32,10 +32,27 @@ export function CustomerHome() {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState('');
   const [trackingToken, setTrackingToken] = useState('');
+  const [showAddedToast, setShowAddedToast] = useState(false);
+  const [addedItemName, setAddedItemName] = useState('');
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (showAddedToast) {
+      const timer = setTimeout(() => {
+        setShowAddedToast(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showAddedToast]);
+
+  const handleAddToCart = (item: { id: string; name: string; price: number; type: 'PRODUCT' | 'BUNDLE' }) => {
+    addItem(item);
+    setAddedItemName(item.name);
+    setShowAddedToast(true);
+  };
 
   const loadData = async () => {
     try {
@@ -168,7 +185,7 @@ export function CustomerHome() {
   }
 
   if (orderPlaced) {
-    const trackingUrl = `${window.location.origin}/track/${trackingToken}`;
+    const trackingUrl = `${window.location.origin}/${restaurantSlug}/track/${trackingToken}`;
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
@@ -358,7 +375,7 @@ export function CustomerHome() {
                         {currencySymbol}{product.price}
                       </span>
                       <button
-                        onClick={() => addItem({ id: product.id, name: product.name, price: product.price, type: 'PRODUCT' })}
+                        onClick={() => handleAddToCart({ id: product.id, name: product.name, price: product.price, type: 'PRODUCT' })}
                         className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-1"
                       >
                         <Plus size={16} />
@@ -420,7 +437,7 @@ export function CustomerHome() {
                       {currencySymbol}{product.price}
                     </span>
                     <button
-                      onClick={() => addItem({ id: product.id, name: product.name, price: product.price, type: 'PRODUCT' })}
+                      onClick={() => handleAddToCart({ id: product.id, name: product.name, price: product.price, type: 'PRODUCT' })}
                       className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-1"
                     >
                       <Plus size={16} />
@@ -503,6 +520,18 @@ export function CustomerHome() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {showAddedToast && (
+        <div className="fixed bottom-4 right-4 z-50 animate-slide-up">
+          <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+            <CheckCircle size={24} />
+            <div>
+              <p className="font-semibold">Added to cart!</p>
+              <p className="text-sm opacity-90">{addedItemName}</p>
+            </div>
           </div>
         </div>
       )}

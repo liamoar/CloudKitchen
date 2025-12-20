@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle, Truck, Store as StoreIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
@@ -17,6 +17,7 @@ export function Checkout({ onBack }: CheckoutProps) {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState<string>('');
   const [trackingToken, setTrackingToken] = useState<string>('');
+  const [restaurantId, setRestaurantId] = useState<string>('');
   const [deliveryType, setDeliveryType] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'BANK_TRANSFER'>('COD');
 
@@ -25,7 +26,26 @@ export function Checkout({ onBack }: CheckoutProps) {
     phone: user?.phone || '',
     address: '',
     city: '',
+    notes: '',
   });
+
+  useEffect(() => {
+    const loadRestaurant = async () => {
+      if (!restaurantSlug) return;
+
+      const { data } = await supabase
+        .from('restaurants')
+        .select('id')
+        .eq('slug', restaurantSlug)
+        .maybeSingle();
+
+      if (data) {
+        setRestaurantId(data.id);
+      }
+    };
+
+    loadRestaurant();
+  }, [restaurantSlug]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +60,7 @@ export function Checkout({ onBack }: CheckoutProps) {
         .from('orders')
         .insert({
           user_id: user?.id || null,
+          restaurant_id: restaurantId,
           phone_number: formData.phone,
           delivery_address: deliveryAddress,
           total_amount: total,
@@ -48,6 +69,7 @@ export function Checkout({ onBack }: CheckoutProps) {
           payment_method: paymentMethod,
           is_self_pickup: deliveryType === 'PICKUP',
           payment_confirmed: false,
+          delivery_notes: formData.notes || null,
         })
         .select()
         .single();
@@ -96,7 +118,7 @@ export function Checkout({ onBack }: CheckoutProps) {
   };
 
   if (orderPlaced) {
-    const trackingUrl = `${window.location.origin}/track/${trackingToken}`;
+    const trackingUrl = `${window.location.origin}/${restaurantSlug}/track/${trackingToken}`;
 
     return (
       <div className="bg-white rounded-lg shadow-md p-8 text-center">
@@ -295,6 +317,19 @@ export function Checkout({ onBack }: CheckoutProps) {
             </div>
           </>
         )}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Delivery Notes / Special Instructions (Optional)
+          </label>
+          <textarea
+            rows={3}
+            value={formData.notes}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            placeholder="e.g., Ring the doorbell, Leave at door, Call on arrival..."
+          />
+        </div>
 
         <div className="pt-4 border-t">
           <div className="flex justify-between items-center mb-4">
