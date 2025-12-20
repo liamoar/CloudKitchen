@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X, CreditCard } from 'lucide-react';
+import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X, CreditCard, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { RestaurantSettings } from '../components/admin/RestaurantSettings';
@@ -7,8 +7,9 @@ import { ProductManagement } from '../components/admin/ProductManagement';
 import { OrderManagement } from '../components/admin/OrderManagement';
 import { SalesAnalytics } from '../components/admin/SalesAnalytics';
 import { SubscriptionStatus } from '../components/admin/SubscriptionStatus';
+import { RiderManagement } from '../components/admin/RiderManagement';
 
-type Tab = 'settings' | 'products' | 'orders' | 'sales' | 'subscription';
+type Tab = 'settings' | 'products' | 'orders' | 'sales' | 'subscription' | 'riders';
 
 export function RestroAdminDashboard() {
   const { user, signOut } = useAuth();
@@ -24,6 +25,7 @@ export function RestroAdminDashboard() {
   const tabs = [
     { id: 'orders' as Tab, label: 'Orders', icon: Receipt },
     { id: 'products' as Tab, label: 'Products', icon: Package },
+    { id: 'riders' as Tab, label: 'Riders', icon: Users },
     { id: 'sales' as Tab, label: 'Sales', icon: BarChart3 },
     { id: 'subscription' as Tab, label: 'Subscription', icon: CreditCard },
     { id: 'settings' as Tab, label: 'Settings', icon: Settings },
@@ -89,6 +91,7 @@ export function RestroAdminDashboard() {
         {activeTab === 'settings' && <RestaurantSettings />}
         {activeTab === 'products' && <ProductManagement />}
         {activeTab === 'orders' && <OrderManagement />}
+        {activeTab === 'riders' && <RiderManagement />}
         {activeTab === 'sales' && <SalesAnalytics />}
         {activeTab === 'subscription' && <SubscriptionStatus />}
       </div>

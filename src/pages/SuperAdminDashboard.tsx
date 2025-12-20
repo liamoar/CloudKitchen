@@ -219,6 +219,9 @@ export function SuperAdminDashboard() {
                           Owner
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Email
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                           Status
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -248,6 +251,9 @@ export function SuperAdminDashboard() {
                             <td className="px-6 py-4">
                               <div className="text-sm text-gray-900">{restaurant.owner?.name}</div>
                               <div className="text-xs text-gray-500">{restaurant.owner?.phone}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-sm text-gray-700">{restaurant.owner?.email}</div>
                             </td>
                             <td className="px-6 py-4">
                               <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(restaurant.status)}`}>

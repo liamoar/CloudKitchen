@@ -26,10 +26,12 @@ export function CustomerHome() {
     address: '',
     city: '',
     paymentMethod: 'COD' as 'COD' | 'BANK_TRANSFER',
+    isSelfPickup: false,
   });
 
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState('');
+  const [trackingToken, setTrackingToken] = useState('');
 
   useEffect(() => {
     loadData();
@@ -85,12 +87,13 @@ export function CustomerHome() {
           user_id: null,
           restaurant_id: restaurantId,
           phone_number: checkoutForm.phone,
-          delivery_address: `${checkoutForm.address}, ${checkoutForm.city}`,
+          delivery_address: checkoutForm.isSelfPickup ? 'Self Pickup' : `${checkoutForm.address}, ${checkoutForm.city}`,
           total_amount: total,
           discount_applied: 0,
           payment_method: checkoutForm.paymentMethod,
           payment_confirmed: false,
           status: 'PENDING',
+          is_self_pickup: checkoutForm.isSelfPickup,
         })
         .select()
         .single();
@@ -108,7 +111,27 @@ export function CustomerHome() {
 
       await supabase.from('order_items').insert(orderItems);
 
+      const { data: settingsData } = await supabase
+        .from('restaurant_settings')
+        .select('tracking_url_expiry_hours')
+        .eq('restaurant_id', restaurantId)
+        .maybeSingle();
+
+      const expiryHours = settingsData?.tracking_url_expiry_hours || 2;
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + expiryHours);
+
+      const token = `${order.id.slice(0, 8)}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+      await supabase.from('order_tracking_tokens').insert({
+        order_id: order.id,
+        token: token,
+        token_type: 'CUSTOMER',
+        expires_at: expiresAt.toISOString(),
+      });
+
       setOrderId(order.id);
+      setTrackingToken(token);
       setOrderPlaced(true);
       clearCart();
     } catch (error) {
@@ -145,21 +168,36 @@ export function CustomerHome() {
   }
 
   if (orderPlaced) {
+    const trackingUrl = `${window.location.origin}/track/${trackingToken}`;
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
           <CheckCircle size={64} className="mx-auto text-green-500 mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Order Placed Successfully!</h2>
           <p className="text-gray-600 mb-4">Order ID: {orderId.slice(0, 8)}</p>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 mb-4">
             We'll call you at {checkoutForm.phone} to confirm your order.
           </p>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm font-semibold text-blue-900 mb-2">Track Your Order</p>
+            <a
+              href={trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 hover:text-blue-800 break-all"
+            >
+              {trackingUrl}
+            </a>
+            <p className="text-xs text-blue-700 mt-2">Link expires in 2 hours</p>
+          </div>
+
           <button
             onClick={() => {
               setOrderPlaced(false);
               setShowCheckout(false);
             }}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold"
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold"
           >
             Order More
           </button>
@@ -204,27 +242,44 @@ export function CustomerHome() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address *</label>
+              <div className="flex items-center gap-2 bg-gray-50 p-4 rounded-lg">
                 <input
-                  type="text"
-                  required
-                  value={checkoutForm.address}
-                  onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
+                  type="checkbox"
+                  id="selfPickup"
+                  checked={checkoutForm.isSelfPickup}
+                  onChange={(e) => setCheckoutForm({ ...checkoutForm, isSelfPickup: e.target.checked })}
+                  className="w-4 h-4 text-orange-600 rounded"
                 />
+                <label htmlFor="selfPickup" className="text-sm font-medium text-gray-700 cursor-pointer">
+                  Self Pickup - I'll pick up my order from the restaurant
+                </label>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City *</label>
-                <input
-                  type="text"
-                  required
-                  value={checkoutForm.city}
-                  onChange={(e) => setCheckoutForm({ ...checkoutForm, city: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
-                />
-              </div>
+              {!checkoutForm.isSelfPickup && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address *</label>
+                    <input
+                      type="text"
+                      required={!checkoutForm.isSelfPickup}
+                      value={checkoutForm.address}
+                      onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })}
+                      className="w-full px-4 py-2 border rounded-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">City *</label>
+                    <input
+                      type="text"
+                      required={!checkoutForm.isSelfPickup}
+                      value={checkoutForm.city}
+                      onChange={(e) => setCheckoutForm({ ...checkoutForm, city: e.target.value })}
+                      className="w-full px-4 py-2 border rounded-lg"
+                    />
+                  </div>
+                </>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method *</label>
