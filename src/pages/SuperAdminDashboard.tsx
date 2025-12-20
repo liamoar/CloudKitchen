@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Building2, DollarSign, Clock, CheckCircle, XCircle, Settings } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { Building2, DollarSign, Clock, CheckCircle, XCircle, Settings, LogOut } from 'lucide-react';
 
 interface Restaurant {
   id: string;
@@ -44,18 +46,35 @@ interface SubscriptionConfig {
 }
 
 interface SalesStats {
-  totalRevenue: number;
-  totalOrders: number;
+  platformRevenue: number;
+  monthlyRevenue: number;
+  totalRenewals: number;
   activeRestaurants: number;
   trialRestaurants: number;
+  newRestaurantsToday: number;
+  newRestaurantsThisMonth: number;
+  totalProducts: number;
+  totalOrdersThisMonth: number;
 }
 
 export function SuperAdminDashboard() {
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'config'>('restaurants');
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [payments, setPayments] = useState<PaymentReceipt[]>([]);
   const [configs, setConfigs] = useState<SubscriptionConfig[]>([]);
-  const [salesStats, setSalesStats] = useState<SalesStats>({ totalRevenue: 0, totalOrders: 0, activeRestaurants: 0, trialRestaurants: 0 });
+  const [salesStats, setSalesStats] = useState<SalesStats>({
+    platformRevenue: 0,
+    monthlyRevenue: 0,
+    totalRenewals: 0,
+    activeRestaurants: 0,
+    trialRestaurants: 0,
+    newRestaurantsToday: 0,
+    newRestaurantsThisMonth: 0,
+    totalProducts: 0,
+    totalOrdersThisMonth: 0
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -84,24 +103,53 @@ export function SuperAdminDashboard() {
           .order('submitted_at', { ascending: false });
         setPayments(data || []);
       } else if (activeTab === 'sales') {
-        const { data: ordersData } = await supabase
-          .from('orders')
-          .select('total_amount, status');
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        const { data: restaurantsData } = await supabase
-          .from('restaurants')
-          .select('status');
+        const [paymentsData, restaurantsData, productsData, ordersData, configsData] = await Promise.all([
+          supabase.from('payment_receipts').select('amount, status, submitted_at'),
+          supabase.from('restaurants').select('status, created_at'),
+          supabase.from('products').select('id'),
+          supabase.from('orders').select('id, created_at, status').gte('created_at', startOfMonth.toISOString()),
+          supabase.from('subscription_configs').select('monthly_price')
+        ]);
 
-        if (ordersData && restaurantsData) {
-          const totalRevenue = ordersData
-            .filter(o => o.status !== 'CANCELLED')
-            .reduce((sum, order) => sum + order.total_amount, 0);
+        if (paymentsData.data && restaurantsData.data) {
+          const approvedPayments = paymentsData.data.filter(p => p.status === 'APPROVED');
+          const platformRevenue = approvedPayments.reduce((sum, p) => sum + p.amount, 0);
+          const totalRenewals = approvedPayments.length;
+
+          const activeRestaurants = restaurantsData.data.filter(r => r.status === 'ACTIVE').length;
+          const trialRestaurants = restaurantsData.data.filter(r => r.status === 'TRIAL').length;
+
+          const newRestaurantsToday = restaurantsData.data.filter(
+            r => new Date(r.created_at) >= startOfToday
+          ).length;
+
+          const newRestaurantsThisMonth = restaurantsData.data.filter(
+            r => new Date(r.created_at) >= startOfMonth
+          ).length;
+
+          const averageMonthlyPrice = configsData.data && configsData.data.length > 0
+            ? configsData.data.reduce((sum, c) => sum + c.monthly_price, 0) / configsData.data.length
+            : 0;
+
+          const monthlyRevenue = activeRestaurants * averageMonthlyPrice;
+
+          const totalProducts = productsData.data?.length || 0;
+          const totalOrdersThisMonth = ordersData.data?.filter(o => o.status !== 'CANCELLED').length || 0;
 
           setSalesStats({
-            totalRevenue,
-            totalOrders: ordersData.filter(o => o.status !== 'CANCELLED').length,
-            activeRestaurants: restaurantsData.filter(r => r.status === 'ACTIVE').length,
-            trialRestaurants: restaurantsData.filter(r => r.status === 'TRIAL').length,
+            platformRevenue,
+            monthlyRevenue,
+            totalRenewals,
+            activeRestaurants,
+            trialRestaurants,
+            newRestaurantsToday,
+            newRestaurantsThisMonth,
+            totalProducts,
+            totalOrdersThisMonth
           });
         }
       } else if (activeTab === 'config') {
@@ -168,6 +216,11 @@ export function SuperAdminDashboard() {
     }
   };
 
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/backend-system');
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'TRIAL': return 'bg-blue-100 text-blue-800';
@@ -188,7 +241,16 @@ export function SuperAdminDashboard() {
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">Super Admin Dashboard</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-gray-900">Super Admin Dashboard</h1>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <LogOut size={20} />
+              Sign Out
+            </button>
+          </div>
         </div>
       </div>
 
@@ -331,29 +393,44 @@ export function SuperAdminDashboard() {
 
             {activeTab === 'sales' && (
               <div className="space-y-6">
+                <h2 className="text-xl font-bold text-gray-900">Platform Revenue & Metrics</h2>
+
                 <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div className="bg-white rounded-lg shadow p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-medium text-gray-600">Total Revenue</h3>
+                      <h3 className="text-sm font-medium text-gray-600">Platform Revenue</h3>
                       <div className="p-2 bg-green-100 rounded-lg">
                         <DollarSign size={20} className="text-green-600" />
                       </div>
                     </div>
                     <p className="text-3xl font-bold text-gray-900">
-                      ${salesStats.totalRevenue.toFixed(2)}
+                      ${salesStats.platformRevenue.toFixed(2)}
                     </p>
-                    <p className="text-sm text-gray-500 mt-1">From all restaurants</p>
+                    <p className="text-sm text-gray-500 mt-1">Total subscription revenue</p>
                   </div>
 
                   <div className="bg-white rounded-lg shadow p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-medium text-gray-600">Total Orders</h3>
+                      <h3 className="text-sm font-medium text-gray-600">Monthly Recurring Revenue</h3>
                       <div className="p-2 bg-blue-100 rounded-lg">
-                        <CheckCircle size={20} className="text-blue-600" />
+                        <DollarSign size={20} className="text-blue-600" />
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900">{salesStats.totalOrders}</p>
-                    <p className="text-sm text-gray-500 mt-1">Completed orders</p>
+                    <p className="text-3xl font-bold text-gray-900">
+                      ${salesStats.monthlyRevenue.toFixed(2)}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">Expected monthly income</p>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-medium text-gray-600">Total Renewals</h3>
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <CheckCircle size={20} className="text-purple-600" />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900">{salesStats.totalRenewals}</p>
+                    <p className="text-sm text-gray-500 mt-1">Approved payments</p>
                   </div>
 
                   <div className="bg-white rounded-lg shadow p-6">
@@ -366,7 +443,9 @@ export function SuperAdminDashboard() {
                     <p className="text-3xl font-bold text-gray-900">{salesStats.activeRestaurants}</p>
                     <p className="text-sm text-gray-500 mt-1">Paying customers</p>
                   </div>
+                </div>
 
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div className="bg-white rounded-lg shadow p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-medium text-gray-600">Trial Restaurants</h3>
@@ -377,32 +456,65 @@ export function SuperAdminDashboard() {
                     <p className="text-3xl font-bold text-gray-900">{salesStats.trialRestaurants}</p>
                     <p className="text-sm text-gray-500 mt-1">On trial period</p>
                   </div>
+
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-medium text-gray-600">New Today</h3>
+                      <div className="p-2 bg-orange-100 rounded-lg">
+                        <Building2 size={20} className="text-orange-600" />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900">{salesStats.newRestaurantsToday}</p>
+                    <p className="text-sm text-gray-500 mt-1">Restaurants enrolled today</p>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-medium text-gray-600">New This Month</h3>
+                      <div className="p-2 bg-cyan-100 rounded-lg">
+                        <Building2 size={20} className="text-cyan-600" />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900">{salesStats.newRestaurantsThisMonth}</p>
+                    <p className="text-sm text-gray-500 mt-1">Restaurants this month</p>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-medium text-gray-600">Conversion Rate</h3>
+                      <div className="p-2 bg-indigo-100 rounded-lg">
+                        <CheckCircle size={20} className="text-indigo-600" />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900">
+                      {salesStats.trialRestaurants + salesStats.activeRestaurants > 0
+                        ? Math.round((salesStats.activeRestaurants / (salesStats.trialRestaurants + salesStats.activeRestaurants)) * 100)
+                        : 0}%
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">Trial to paid conversion</p>
+                  </div>
                 </div>
 
                 <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Platform Overview</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Platform Activity Overview</h3>
                   <div className="grid md:grid-cols-3 gap-4">
                     <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600 mb-1">Average Revenue per Restaurant</p>
+                      <p className="text-sm text-gray-600 mb-1">Total Products Across Platform</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {salesStats.totalProducts.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600 mb-1">Orders This Month</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {salesStats.totalOrdersThisMonth.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600 mb-1">Average Revenue per Customer</p>
                       <p className="text-2xl font-bold text-gray-900">
                         ${salesStats.activeRestaurants > 0
-                          ? (salesStats.totalRevenue / salesStats.activeRestaurants).toFixed(2)
-                          : '0.00'}
-                      </p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600 mb-1">Average Orders per Restaurant</p>
-                      <p className="text-2xl font-bold text-gray-900">
-                        {salesStats.activeRestaurants > 0
-                          ? Math.round(salesStats.totalOrders / salesStats.activeRestaurants)
-                          : 0}
-                      </p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600 mb-1">Average Order Value</p>
-                      <p className="text-2xl font-bold text-gray-900">
-                        ${salesStats.totalOrders > 0
-                          ? (salesStats.totalRevenue / salesStats.totalOrders).toFixed(2)
+                          ? (salesStats.platformRevenue / salesStats.activeRestaurants).toFixed(2)
                           : '0.00'}
                       </p>
                     </div>

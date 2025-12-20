@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ShoppingCart as CartIcon, X, Plus, Minus, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useCart } from '../contexts/CartContext';
+import { formatCurrency } from '../lib/utils';
 import type { Product, Bundle, RestaurantSettings, ProductCategory, FeaturedProduct } from '../lib/database.types';
 
 export function CustomerHome() {
@@ -164,20 +165,6 @@ export function CustomerHome() {
 
   const featuredProducts = products.filter((p) => featuredProductIds.includes(p.id));
 
-  const getCurrencySymbol = (currency: string | undefined) => {
-    switch (currency) {
-      case 'USD': return '$';
-      case 'EUR': return '€';
-      case 'GBP': return '£';
-      case 'INR': return '₹';
-      case 'NPR': return 'रू';
-      case 'AED': return 'د.إ';
-      default: return '$';
-    }
-  };
-
-  const currencySymbol = getCurrencySymbol(settings?.currency);
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -316,7 +303,7 @@ export function CustomerHome() {
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-lg font-semibold">Total</span>
                   <span className="text-2xl font-bold text-orange-600">
-                    {currencySymbol}{total.toFixed(2)}
+                    {formatCurrency(total, currency)}
                   </span>
                 </div>
                 <button
@@ -374,7 +361,7 @@ export function CustomerHome() {
                     <p className="text-sm text-gray-600 mt-1 line-clamp-2">{product.description}</p>
                     <div className="flex items-center justify-between mt-4">
                       <span className="text-lg font-bold text-orange-600">
-                        {currencySymbol}{product.price}
+                        {formatCurrency(product.price, currency)}
                       </span>
                       <button
                         onClick={() => handleAddToCart({ id: product.id, name: product.name, price: product.price, type: 'PRODUCT' })}
@@ -436,7 +423,7 @@ export function CustomerHome() {
                   <p className="text-sm text-gray-600 mt-1 line-clamp-2">{product.description}</p>
                   <div className="flex items-center justify-between mt-4">
                     <span className="text-lg font-bold text-orange-600">
-                      {currencySymbol}{product.price}
+                      {formatCurrency(product.price, currency)}
                     </span>
                     <button
                       onClick={() => handleAddToCart({ id: product.id, name: product.name, price: product.price, type: 'PRODUCT' })}
@@ -475,7 +462,7 @@ export function CustomerHome() {
                       <div className="flex-1">
                         <h3 className="font-medium text-gray-800">{item.name}</h3>
                         <p className="text-orange-600 font-semibold mt-1">
-                          {currencySymbol}{item.price}
+                          {formatCurrency(item.price, currency)}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -507,7 +494,7 @@ export function CustomerHome() {
                   <div className="flex justify-between items-center mb-4">
                     <span className="text-lg font-semibold">Total</span>
                     <span className="text-2xl font-bold text-orange-600">
-                      {currencySymbol}{total.toFixed(2)}
+                      {formatCurrency(total, currency)}
                     </span>
                   </div>
                   <button
