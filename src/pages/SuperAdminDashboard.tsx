@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../lib/utils';
 import { Building2, DollarSign, Clock, CheckCircle, XCircle, Settings, LogOut } from 'lucide-react';
+import PaymentApproval from '../components/superadmin/PaymentApproval';
 
 interface Restaurant {
   id: string;
@@ -20,20 +21,6 @@ interface Restaurant {
     name: string;
     email: string;
     phone: string;
-  };
-}
-
-interface PaymentReceipt {
-  id: string;
-  amount: number;
-  currency: string;
-  receipt_image_url: string | null;
-  status: string;
-  submitted_at: string;
-  notes: string | null;
-  restaurant: {
-    name: string;
-    slug: string;
   };
 }
 
@@ -63,7 +50,6 @@ export function SuperAdminDashboard() {
   const { signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'config'>('restaurants');
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [payments, setPayments] = useState<PaymentReceipt[]>([]);
   const [configs, setConfigs] = useState<SubscriptionConfig[]>([]);
   const [salesStats, setSalesStats] = useState<SalesStats>({
     platformRevenueByCurrency: [],
@@ -95,14 +81,9 @@ export function SuperAdminDashboard() {
           .order('created_at', { ascending: false });
         setRestaurants(data || []);
       } else if (activeTab === 'payments') {
-        const { data } = await supabase
-          .from('payment_receipts')
-          .select(`
-            *,
-            restaurant:restaurants(name, slug)
-          `)
-          .order('submitted_at', { ascending: false });
-        setPayments(data || []);
+        // Payment approval is handled by the PaymentApproval component
+        setLoading(false);
+        return;
       } else if (activeTab === 'sales') {
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -173,44 +154,6 @@ export function SuperAdminDashboard() {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handlePaymentReview = async (paymentId: string, status: 'APPROVED' | 'REJECTED', notes: string = '') => {
-    try {
-      await supabase
-        .from('payment_receipts')
-        .update({
-          status,
-          reviewed_at: new Date().toISOString(),
-          notes
-        })
-        .eq('id', paymentId);
-
-      if (status === 'APPROVED') {
-        const payment = payments.find(p => p.id === paymentId);
-        if (payment) {
-          const restaurant = restaurants.find(r => r.id === payment.restaurant);
-          if (restaurant) {
-            const newSubEndDate = new Date();
-            newSubEndDate.setMonth(newSubEndDate.getMonth() + 1);
-
-            await supabase
-              .from('restaurants')
-              .update({
-                status: 'ACTIVE',
-                subscription_end_date: newSubEndDate.toISOString(),
-                is_payment_overdue: false,
-                overdue_since: null
-              })
-              .eq('id', restaurant.id);
-          }
-        }
-      }
-
-      loadData();
-    } catch (error) {
-      console.error('Error reviewing payment:', error);
     }
   };
 
@@ -562,71 +505,8 @@ export function SuperAdminDashboard() {
             )}
 
             {activeTab === 'payments' && (
-              <div className="space-y-4">
-                {payments.map((payment) => (
-                  <div key={payment.id} className="bg-white rounded-lg shadow p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {payment.restaurant?.name}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          {payment.amount} {payment.currency}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Submitted: {new Date(payment.submitted_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        payment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                        payment.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {payment.status}
-                      </span>
-                    </div>
-
-                    {payment.receipt_image_url && (
-                      <div className="mb-4">
-                        <img
-                          src={payment.receipt_image_url}
-                          alt="Receipt"
-                          className="max-w-md rounded border"
-                        />
-                      </div>
-                    )}
-
-                    {payment.notes && (
-                      <div className="mb-4 p-3 bg-gray-50 rounded">
-                        <p className="text-sm text-gray-700">{payment.notes}</p>
-                      </div>
-                    )}
-
-                    {payment.status === 'PENDING' && (
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => handlePaymentReview(payment.id, 'APPROVED', 'Payment approved')}
-                          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
-                        >
-                          <CheckCircle size={16} />
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handlePaymentReview(payment.id, 'REJECTED', 'Payment rejected')}
-                          className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
-                        >
-                          <XCircle size={16} />
-                          Reject
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {payments.length === 0 && (
-                  <div className="text-center py-12 text-gray-500">
-                    No payment receipts yet
-                  </div>
-                )}
+              <div className="bg-white rounded-lg shadow p-6">
+                <PaymentApproval />
               </div>
             )}
 

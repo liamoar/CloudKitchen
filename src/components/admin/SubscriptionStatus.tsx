@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Calendar, DollarSign, Upload, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Calendar, DollarSign, CheckCircle, Clock, AlertTriangle, CreditCard, TrendingUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import PaymentSubmission from './PaymentSubmission';
+import PaymentHistory from './PaymentHistory';
 
 interface Restaurant {
   id: string;
@@ -12,6 +14,16 @@ interface Restaurant {
   trial_end_date: string | null;
   subscription_end_date: string | null;
   is_payment_overdue: boolean;
+  tier: SubscriptionTier | null;
+}
+
+interface SubscriptionTier {
+  id: string;
+  name: string;
+  monthly_price: number;
+  product_limit: number;
+  order_limit_per_month: number;
+  features: any;
 }
 
 interface SubscriptionConfig {
@@ -22,11 +34,9 @@ interface SubscriptionConfig {
 export function SubscriptionStatus() {
   const { user } = useAuth();
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
-  const [config, setConfig] = useState<SubscriptionConfig | null>(null);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [receiptImage, setReceiptImage] = useState<string>('');
-  const [message, setMessage] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentType, setPaymentType] = useState<'upgrade' | 'renewal'>('renewal');
 
   useEffect(() => {
     loadData();
@@ -38,26 +48,33 @@ export function SubscriptionStatus() {
     try {
       const { data: restaurantData } = await supabase
         .from('restaurants')
-        .select('*')
+        .select(`
+          *,
+          tier:tier_id (
+            id,
+            name,
+            monthly_price,
+            product_limit,
+            order_limit_per_month,
+            features
+          )
+        `)
         .eq('owner_id', user.id)
         .maybeSingle();
 
       if (restaurantData) {
         setRestaurant(restaurantData);
-
-        const { data: configData } = await supabase
-          .from('subscription_configs')
-          .select('monthly_price, currency')
-          .eq('country', restaurantData.country)
-          .maybeSingle();
-
-        setConfig(configData);
       }
     } catch (error) {
       console.error('Error loading subscription data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePaymentSuccess = () => {
+    setShowPaymentModal(false);
+    loadData();
   };
 
   const getDaysRemaining = () => {
@@ -73,40 +90,6 @@ export function SubscriptionStatus() {
     return days;
   };
 
-  const handleSubmitReceipt = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!receiptImage || !restaurant || !config) {
-      setMessage('Please enter receipt image URL');
-      return;
-    }
-
-    setUploading(true);
-    setMessage('');
-
-    try {
-      const { error } = await supabase
-        .from('payment_receipts')
-        .insert({
-          restaurant_id: restaurant.id,
-          amount: config.monthly_price,
-          currency: config.currency,
-          receipt_image_url: receiptImage,
-          status: 'PENDING',
-        });
-
-      if (error) throw error;
-
-      setMessage('Payment receipt submitted successfully. Awaiting admin approval.');
-      setReceiptImage('');
-    } catch (error) {
-      setMessage('Failed to submit receipt. Please try again.');
-      console.error(error);
-    } finally {
-      setUploading(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -115,7 +98,7 @@ export function SubscriptionStatus() {
     );
   }
 
-  if (!restaurant || !config) {
+  if (!restaurant) {
     return null;
   }
 
@@ -139,17 +122,26 @@ export function SubscriptionStatus() {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center gap-3 mb-4">
-          {getStatusIcon()}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Subscription Status</h3>
-            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium mt-1 ${getStatusColor()}`}>
-              {restaurant.status}
-            </span>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            {getStatusIcon()}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Subscription Status</h3>
+              <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium mt-1 ${getStatusColor()}`}>
+                {restaurant.status}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-3 mb-6">
+          {restaurant.tier && (
+            <div className="flex items-center gap-2 text-gray-700">
+              <TrendingUp size={18} />
+              <span>Current Plan: <strong>{restaurant.tier.name}</strong></span>
+            </div>
+          )}
+
           {restaurant.status === 'TRIAL' && daysRemaining !== null && (
             <div className="flex items-center gap-2 text-gray-700">
               <Calendar size={18} />
@@ -164,10 +156,12 @@ export function SubscriptionStatus() {
             </div>
           )}
 
-          <div className="flex items-center gap-2 text-gray-700">
-            <DollarSign size={18} />
-            <span>Monthly: {config.monthly_price} {config.currency}</span>
-          </div>
+          {restaurant.tier && (
+            <div className="flex items-center gap-2 text-gray-700">
+              <DollarSign size={18} />
+              <span>Monthly: {restaurant.tier.monthly_price} {restaurant.currency}</span>
+            </div>
+          )}
 
           {restaurant.is_payment_overdue && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
@@ -187,55 +181,51 @@ export function SubscriptionStatus() {
             </div>
           )}
         </div>
-      </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Renew Subscription</h3>
-
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <p className="text-sm text-blue-900 font-medium mb-2">Bank Transfer Details:</p>
-          <p className="text-sm text-blue-800">Account Name: RestaurantOS Platform</p>
-          <p className="text-sm text-blue-800">Account Number: 1234567890</p>
-          <p className="text-sm text-blue-800">Bank: Example Bank</p>
-          <p className="text-sm text-blue-800">Amount: {config.monthly_price} {config.currency}</p>
-        </div>
-
-        {message && (
-          <div className={`p-3 rounded-lg mb-4 text-sm ${
-            message.includes('success') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-          }`}>
-            {message}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmitReceipt} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Payment Receipt Image URL
-            </label>
-            <input
-              type="url"
-              required
-              value={receiptImage}
-              onChange={(e) => setReceiptImage(e.target.value)}
-              placeholder="https://example.com/receipt.jpg"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Upload your image to an image hosting service and paste the URL here
-            </p>
-          </div>
-
+        {/* Action Buttons */}
+        <div className="flex gap-3 pt-4 border-t border-gray-200">
           <button
-            type="submit"
-            disabled={uploading}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold disabled:bg-gray-400"
+            onClick={() => {
+              setPaymentType('renewal');
+              setShowPaymentModal(true);
+            }}
+            className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <Upload size={18} />
-            {uploading ? 'Submitting...' : 'Submit Payment Receipt'}
+            <CreditCard size={18} />
+            Pay Now (Renewal)
           </button>
-        </form>
+          {restaurant.status === 'TRIAL' && (
+            <button
+              onClick={() => {
+                setPaymentType('upgrade');
+                setShowPaymentModal(true);
+              }}
+              className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <TrendingUp size={18} />
+              Upgrade Plan
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Payment History */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <PaymentHistory restaurantId={restaurant.id} />
+      </div>
+
+      {/* Payment Submission Modal */}
+      {showPaymentModal && (
+        <PaymentSubmission
+          restaurantId={restaurant.id}
+          currentTier={restaurant.tier || undefined}
+          country={restaurant.country}
+          currency={restaurant.currency}
+          transactionType={paymentType}
+          onSuccess={handlePaymentSuccess}
+          onCancel={() => setShowPaymentModal(false)}
+        />
+      )}
     </div>
   );
 }
