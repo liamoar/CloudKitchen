@@ -35,10 +35,15 @@ export function OrderManagement() {
 
   useEffect(() => {
     loadRestaurantStatus();
-    loadOrders();
-    const interval = setInterval(loadOrders, 30000);
-    return () => clearInterval(interval);
   }, [user?.id]);
+
+  useEffect(() => {
+    if (restaurant?.id) {
+      loadOrders();
+      const interval = setInterval(loadOrders, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [restaurant?.id]);
 
   useEffect(() => {
     filterOrders();
