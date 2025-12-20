@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { RestaurantSettings } from '../components/admin/RestaurantSettings.tsx';
-import { ProductManagement } from '../components/admin/ProductManagement.tsx';
-import { OrderManagement } from '../components/admin/OrderManagement.tsx';
-import { SalesAnalytics } from '../components/admin/SalesAnalytics.tsx';
+import { RestaurantSettings } from '../components/admin/RestaurantSettings';
+import { ProductManagement } from '../components/admin/ProductManagement';
+import { OrderManagement } from '../components/admin/OrderManagement';
+import { SalesAnalytics } from '../components/admin/SalesAnalytics';
 
 type Tab = 'settings' | 'products' | 'orders' | 'sales';
 

@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
-import { CustomerHome } from './pages/CustomerHome.tsx';
-import { RestroAdminLogin } from './pages/RestroAdminLogin.tsx';
-import { RestroAdminDashboard } from './pages/RestroAdminDashboard.tsx';
+import { CustomerHome } from './pages/CustomerHome';
+import { RestroAdminLogin } from './pages/RestroAdminLogin';
+import { RestroAdminDashboard } from './pages/RestroAdminDashboard';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
