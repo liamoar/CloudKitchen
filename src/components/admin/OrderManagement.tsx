@@ -31,6 +31,7 @@ export function OrderManagement() {
   const [viewMode, setViewMode] = useState<'new' | 'history'>('new');
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [riders, setRiders] = useState<Rider[]>([]);
+  const [notification, setNotification] = useState<{message: string; type: 'success' | 'error'} | null>(null);
 
   useEffect(() => {
     loadRestaurantStatus();
@@ -42,6 +43,11 @@ export function OrderManagement() {
   useEffect(() => {
     filterOrders();
   }, [orders, searchPhone, viewMode]);
+
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
 
   const loadRestaurantStatus = async () => {
     if (!user?.id) return;
@@ -120,17 +126,31 @@ export function OrderManagement() {
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
     if (!restaurant?.id) return;
     if (restaurant?.is_payment_overdue) {
-      alert('Cannot process orders. Your subscription payment is overdue. Please renew your subscription.');
+      showNotification('Cannot process orders. Your subscription payment is overdue.', 'error');
       return;
     }
-    await supabase.from('orders').update({ status }).eq('id', orderId).eq('restaurant_id', restaurant.id);
-    loadOrders();
+    try {
+      const { error } = await supabase.from('orders').update({ status }).eq('id', orderId).eq('restaurant_id', restaurant.id);
+      if (error) throw error;
+      showNotification('Order status updated successfully!', 'success');
+      loadOrders();
+    } catch (error) {
+      showNotification('Failed to update order status.', 'error');
+      console.error('Error updating status:', error);
+    }
   };
 
   const updatePaymentConfirmation = async (orderId: string, confirmed: boolean) => {
     if (!restaurant?.id) return;
-    await supabase.from('orders').update({ payment_confirmed: confirmed }).eq('id', orderId).eq('restaurant_id', restaurant.id);
-    loadOrders();
+    try {
+      const { error } = await supabase.from('orders').update({ payment_confirmed: confirmed }).eq('id', orderId).eq('restaurant_id', restaurant.id);
+      if (error) throw error;
+      showNotification(`Payment ${confirmed ? 'confirmed' : 'unconfirmed'} successfully!`, 'success');
+      loadOrders();
+    } catch (error) {
+      showNotification('Failed to update payment confirmation.', 'error');
+      console.error('Error updating payment:', error);
+    }
   };
 
   const assignRider = async (orderId: string, riderId: string) => {
@@ -160,12 +180,13 @@ export function OrderManagement() {
 
       if (rider) {
         alert(`Rider ${rider.name} assigned!\n\nShare this link with the rider:\n${riderUrl}`);
+        showNotification(`Rider ${rider.name} assigned successfully!`, 'success');
       }
 
       loadOrders();
     } catch (error) {
       console.error('Error assigning rider:', error);
-      alert('Failed to assign rider');
+      showNotification('Failed to assign rider. Please try again.', 'error');
     }
   };
 
@@ -207,6 +228,11 @@ export function OrderManagement() {
 
   return (
     <div className="space-y-6">
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`}>
+          {notification.message}
+        </div>
+      )}
       {restaurant?.is_payment_overdue && (
         <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 flex items-start gap-3">
           <AlertTriangle className="text-red-600 flex-shrink-0" size={24} />

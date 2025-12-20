@@ -19,12 +19,18 @@ export function RiderManagement() {
   const [showForm, setShowForm] = useState(false);
   const [editingRider, setEditingRider] = useState<Rider | null>(null);
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{message: string; type: 'success' | 'error'} | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
     email: '',
   });
+
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
 
   useEffect(() => {
     loadRestaurantId();
@@ -77,7 +83,7 @@ export function RiderManagement() {
 
     try {
       if (editingRider) {
-        await supabase
+        const { error } = await supabase
           .from('delivery_riders')
           .update({
             name: formData.name,
@@ -86,8 +92,10 @@ export function RiderManagement() {
           })
           .eq('id', editingRider.id)
           .eq('restaurant_id', restaurantId);
+        if (error) throw error;
+        showNotification('Rider updated successfully!', 'success');
       } else {
-        await supabase
+        const { error } = await supabase
           .from('delivery_riders')
           .insert({
             restaurant_id: restaurantId,
@@ -95,6 +103,8 @@ export function RiderManagement() {
             phone: formData.phone,
             email: formData.email || null,
           });
+        if (error) throw error;
+        showNotification('Rider added successfully!', 'success');
       }
 
       setFormData({ name: '', phone: '', email: '' });
@@ -103,7 +113,7 @@ export function RiderManagement() {
       loadRiders();
     } catch (error) {
       console.error('Error saving rider:', error);
-      alert('Failed to save rider');
+      showNotification('Failed to save rider. Please try again.', 'error');
     }
   };
 
@@ -122,31 +132,34 @@ export function RiderManagement() {
     if (!confirm('Are you sure you want to delete this rider?')) return;
 
     try {
-      await supabase
+      const { error } = await supabase
         .from('delivery_riders')
         .delete()
         .eq('id', riderId)
         .eq('restaurant_id', restaurantId);
-
+      if (error) throw error;
+      showNotification('Rider deleted successfully!', 'success');
       loadRiders();
     } catch (error) {
       console.error('Error deleting rider:', error);
-      alert('Failed to delete rider');
+      showNotification('Failed to delete rider.', 'error');
     }
   };
 
   const toggleActive = async (rider: Rider) => {
     if (!restaurantId) return;
     try {
-      await supabase
+      const { error } = await supabase
         .from('delivery_riders')
         .update({ is_active: !rider.is_active })
         .eq('id', rider.id)
         .eq('restaurant_id', restaurantId);
-
+      if (error) throw error;
+      showNotification(`Rider ${rider.is_active ? 'deactivated' : 'activated'} successfully!`, 'success');
       loadRiders();
     } catch (error) {
       console.error('Error updating rider status:', error);
+      showNotification('Failed to update rider status.', 'error');
     }
   };
 
@@ -162,6 +175,11 @@ export function RiderManagement() {
 
   return (
     <div className="space-y-6">
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`}>
+          {notification.message}
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Delivery Riders</h2>
         <button

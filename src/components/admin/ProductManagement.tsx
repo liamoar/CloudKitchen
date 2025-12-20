@@ -17,6 +17,7 @@ export function ProductManagement() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{message: string; type: 'success' | 'error'} | null>(null);
 
   const [productForm, setProductForm] = useState({
     name: '',
@@ -52,6 +53,11 @@ export function ProductManagement() {
       loadCategories();
     }
   }, [settings, restaurantId]);
+
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
 
   const loadRestaurantId = async () => {
     if (!user?.id) return;
@@ -106,47 +112,65 @@ export function ProductManagement() {
     e.preventDefault();
     if (!restaurantId) return;
 
-    const productData = {
-      restaurant_id: restaurantId,
-      name: productForm.name,
-      description: productForm.description,
-      price: parseFloat(productForm.price),
-      stock_quantity: parseInt(productForm.stock_quantity),
-      image_url: productForm.image_url || null,
-      category_id: productForm.category_id || null,
-      is_active: productForm.is_active,
-    };
+    try {
+      const productData = {
+        restaurant_id: restaurantId,
+        name: productForm.name,
+        description: productForm.description,
+        price: parseFloat(productForm.price),
+        stock_quantity: parseInt(productForm.stock_quantity),
+        image_url: productForm.image_url || null,
+        category_id: productForm.category_id || null,
+        is_active: productForm.is_active,
+      };
 
-    if (editingProductId) {
-      await supabase.from('products').update(productData).eq('id', editingProductId).eq('restaurant_id', restaurantId);
-    } else {
-      await supabase.from('products').insert(productData);
+      if (editingProductId) {
+        const { error } = await supabase.from('products').update(productData).eq('id', editingProductId).eq('restaurant_id', restaurantId);
+        if (error) throw error;
+        showNotification('Product updated successfully!', 'success');
+      } else {
+        const { error } = await supabase.from('products').insert(productData);
+        if (error) throw error;
+        showNotification('Product added successfully!', 'success');
+      }
+
+      resetProductForm();
+      loadProducts();
+    } catch (error) {
+      showNotification('Failed to save product. Please try again.', 'error');
+      console.error('Error saving product:', error);
     }
-
-    resetProductForm();
-    loadProducts();
   };
 
   const handleCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurantId) return;
 
-    const categoryData = {
-      restaurant_id: restaurantId,
-      name: categoryForm.name,
-      description: categoryForm.description || null,
-      display_order: parseInt(categoryForm.display_order),
-      is_active: categoryForm.is_active,
-    };
+    try {
+      const categoryData = {
+        restaurant_id: restaurantId,
+        name: categoryForm.name,
+        description: categoryForm.description || null,
+        display_order: parseInt(categoryForm.display_order),
+        is_active: categoryForm.is_active,
+      };
 
-    if (editingCategoryId) {
-      await supabase.from('product_categories').update(categoryData).eq('id', editingCategoryId).eq('restaurant_id', restaurantId);
-    } else {
-      await supabase.from('product_categories').insert(categoryData);
+      if (editingCategoryId) {
+        const { error } = await supabase.from('product_categories').update(categoryData).eq('id', editingCategoryId).eq('restaurant_id', restaurantId);
+        if (error) throw error;
+        showNotification('Category updated successfully!', 'success');
+      } else {
+        const { error } = await supabase.from('product_categories').insert(categoryData);
+        if (error) throw error;
+        showNotification('Category added successfully!', 'success');
+      }
+
+      resetCategoryForm();
+      loadCategories();
+    } catch (error) {
+      showNotification('Failed to save category. Please try again.', 'error');
+      console.error('Error saving category:', error);
     }
-
-    resetCategoryForm();
-    loadCategories();
   };
 
   const handleEditProduct = (product: Product) => {
@@ -177,38 +201,61 @@ export function ProductManagement() {
   const handleDeleteProduct = async (id: string) => {
     if (!restaurantId) return;
     if (confirm('Are you sure you want to delete this product?')) {
-      await supabase.from('products').delete().eq('id', id).eq('restaurant_id', restaurantId);
-      loadProducts();
+      try {
+        const { error } = await supabase.from('products').delete().eq('id', id).eq('restaurant_id', restaurantId);
+        if (error) throw error;
+        showNotification('Product deleted successfully!', 'success');
+        loadProducts();
+      } catch (error) {
+        showNotification('Failed to delete product.', 'error');
+        console.error('Error deleting product:', error);
+      }
     }
   };
 
   const handleDeleteCategory = async (id: string) => {
     if (!restaurantId) return;
     if (confirm('Are you sure you want to delete this category?')) {
-      await supabase.from('product_categories').delete().eq('id', id).eq('restaurant_id', restaurantId);
-      loadCategories();
+      try {
+        const { error } = await supabase.from('product_categories').delete().eq('id', id).eq('restaurant_id', restaurantId);
+        if (error) throw error;
+        showNotification('Category deleted successfully!', 'success');
+        loadCategories();
+      } catch (error) {
+        showNotification('Failed to delete category.', 'error');
+        console.error('Error deleting category:', error);
+      }
     }
   };
 
   const toggleFeatured = async (productId: string) => {
     if (!restaurantId) return;
 
-    const isFeatured = featuredProducts.some((fp) => fp.product_id === productId);
+    try {
+      const isFeatured = featuredProducts.some((fp) => fp.product_id === productId);
 
-    if (isFeatured) {
-      const fp = featuredProducts.find((fp) => fp.product_id === productId);
-      if (fp) {
-        await supabase.from('featured_products').delete().eq('id', fp.id).eq('restaurant_id', restaurantId);
+      if (isFeatured) {
+        const fp = featuredProducts.find((fp) => fp.product_id === productId);
+        if (fp) {
+          const { error } = await supabase.from('featured_products').delete().eq('id', fp.id).eq('restaurant_id', restaurantId);
+          if (error) throw error;
+          showNotification('Removed from featured products!', 'success');
+        }
+      } else {
+        const { error } = await supabase.from('featured_products').insert({
+          restaurant_id: restaurantId,
+          product_id: productId,
+          display_order: featuredProducts.length,
+        });
+        if (error) throw error;
+        showNotification('Added to featured products!', 'success');
       }
-    } else {
-      await supabase.from('featured_products').insert({
-        restaurant_id: restaurantId,
-        product_id: productId,
-        display_order: featuredProducts.length,
-      });
-    }
 
-    loadFeaturedProducts();
+      loadFeaturedProducts();
+    } catch (error) {
+      showNotification('Failed to update featured status.', 'error');
+      console.error('Error toggling featured:', error);
+    }
   };
 
   const resetProductForm = () => {
@@ -248,6 +295,11 @@ export function ProductManagement() {
 
   return (
     <div className="space-y-6">
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`}>
+          {notification.message}
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-gray-800">Product Management</h2>
         <div className="flex gap-2">

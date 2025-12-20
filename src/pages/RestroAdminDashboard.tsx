@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X, CreditCard, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X, CreditCard, Users, Store, Phone, Mail, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import { RestaurantSettings } from '../components/admin/RestaurantSettings';
 import { ProductManagement } from '../components/admin/ProductManagement';
 import { OrderManagement } from '../components/admin/OrderManagement';
@@ -11,11 +12,56 @@ import { RiderManagement } from '../components/admin/RiderManagement';
 
 type Tab = 'settings' | 'products' | 'orders' | 'sales' | 'subscription' | 'riders';
 
+interface RestaurantInfo {
+  name: string;
+  phone: string;
+  email: string;
+  is_open: boolean;
+}
+
 export function RestroAdminDashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('orders');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [restaurantInfo, setRestaurantInfo] = useState<RestaurantInfo | null>(null);
+
+  useEffect(() => {
+    loadRestaurantInfo();
+  }, [user?.id]);
+
+  const loadRestaurantInfo = async () => {
+    if (!user?.id) return;
+
+    const { data: restaurant } = await supabase
+      .from('restaurants')
+      .select('id')
+      .eq('owner_id', user.id)
+      .maybeSingle();
+
+    if (restaurant) {
+      const { data: settings } = await supabase
+        .from('restaurant_settings')
+        .select('name, phone, email')
+        .eq('restaurant_id', restaurant.id)
+        .maybeSingle();
+
+      const { data: restaurantData } = await supabase
+        .from('restaurants')
+        .select('is_open')
+        .eq('id', restaurant.id)
+        .maybeSingle();
+
+      if (settings && restaurantData) {
+        setRestaurantInfo({
+          name: settings.name || 'My Restaurant',
+          phone: settings.phone || '',
+          email: settings.email || '',
+          is_open: restaurantData.is_open,
+        });
+      }
+    }
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -37,10 +83,32 @@ export function RestroAdminDashboard() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Package size={32} className="text-orange-500" />
+              <Store size={32} className="text-orange-500" />
               <div>
-                <h1 className="text-2xl font-bold text-gray-800">Restaurant Admin</h1>
-                <p className="text-sm text-gray-500">{user?.name}</p>
+                <h1 className="text-2xl font-bold text-gray-800">OrderFlow</h1>
+                {restaurantInfo && (
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600 mt-1">
+                    <span className="font-medium text-gray-800">{restaurantInfo.name}</span>
+                    {restaurantInfo.phone && (
+                      <span className="flex items-center gap-1">
+                        <Phone size={14} />
+                        {restaurantInfo.phone}
+                      </span>
+                    )}
+                    {restaurantInfo.email && (
+                      <span className="flex items-center gap-1">
+                        <Mail size={14} />
+                        {restaurantInfo.email}
+                      </span>
+                    )}
+                    <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                      restaurantInfo.is_open ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      <Clock size={12} />
+                      {restaurantInfo.is_open ? 'Open' : 'Closed'}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             <button
