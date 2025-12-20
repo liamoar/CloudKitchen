@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Clock, CheckCircle, ChefHat, Package, Truck, Home, XCircle, AlertTriangle } from 'lucide-react';
+import { Search, Clock, CheckCircle, ChefHat, Package, Truck, Home, XCircle, AlertTriangle, User } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Order, OrderItem, OrderStatus, PaymentMethod } from '../../lib/database.types';
@@ -9,8 +9,16 @@ interface OrderWithItems extends Order {
 }
 
 interface Restaurant {
+  id: string;
   is_payment_overdue: boolean;
   status: string;
+}
+
+interface Rider {
+  id: string;
+  name: string;
+  phone: string;
+  is_active: boolean;
 }
 
 export function OrderManagement() {
@@ -21,6 +29,7 @@ export function OrderManagement() {
   const [searchPhone, setSearchPhone] = useState('');
   const [viewMode, setViewMode] = useState<'new' | 'history'>('new');
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const [riders, setRiders] = useState<Rider[]>([]);
 
   useEffect(() => {
     loadRestaurantStatus();
@@ -38,12 +47,26 @@ export function OrderManagement() {
 
     const { data } = await supabase
       .from('restaurants')
-      .select('is_payment_overdue, status')
+      .select('id, is_payment_overdue, status')
       .eq('owner_id', user.id)
       .maybeSingle();
 
     if (data) {
       setRestaurant(data);
+      loadRiders(data.id);
+    }
+  };
+
+  const loadRiders = async (restaurantId: string) => {
+    const { data } = await supabase
+      .from('delivery_riders')
+      .select('id, name, phone, is_active')
+      .eq('restaurant_id', restaurantId)
+      .eq('is_active', true)
+      .order('name');
+
+    if (data) {
+      setRiders(data);
     }
   };
 
@@ -102,6 +125,38 @@ export function OrderManagement() {
   const updatePaymentConfirmation = async (orderId: string, confirmed: boolean) => {
     await supabase.from('orders').update({ payment_confirmed: confirmed }).eq('id', orderId);
     loadOrders();
+  };
+
+  const assignRider = async (orderId: string, riderId: string) => {
+    try {
+      await supabase
+        .from('orders')
+        .update({ assigned_rider_id: riderId })
+        .eq('id', orderId);
+
+      const tokenValue = `${orderId}-rider-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24);
+
+      await supabase.from('order_tracking_tokens').insert({
+        token: tokenValue,
+        order_id: orderId,
+        token_type: 'RIDER',
+        expires_at: expiresAt.toISOString(),
+      });
+
+      const riderUrl = `${window.location.origin}/rider/${tokenValue}`;
+      const rider = riders.find(r => r.id === riderId);
+
+      if (rider) {
+        alert(`Rider ${rider.name} assigned!\n\nShare this link with the rider:\n${riderUrl}`);
+      }
+
+      loadOrders();
+    } catch (error) {
+      console.error('Error assigning rider:', error);
+      alert('Failed to assign rider');
+    }
   };
 
   const getStatusConfig = (status: OrderStatus) => {
@@ -227,7 +282,15 @@ export function OrderManagement() {
                       <strong>Phone:</strong> {order.phone_number}
                     </p>
                     <p className="text-sm text-gray-700">
-                      <strong>Address:</strong> {order.delivery_address}
+                      <strong>Type:</strong>{' '}
+                      {order.is_self_pickup ? (
+                        <span className="text-blue-600 font-medium">Self Pickup</span>
+                      ) : (
+                        <span className="text-green-600 font-medium">Home Delivery</span>
+                      )}
+                    </p>
+                    <p className="text-sm text-gray-700">
+                      <strong>{order.is_self_pickup ? 'Pickup Location' : 'Address'}:</strong> {order.delivery_address}
                     </p>
                   </div>
                   <div className="text-right">
@@ -273,6 +336,27 @@ export function OrderManagement() {
                     ))}
                   </ul>
                 </div>
+
+                {!order.is_self_pickup && order.status === 'READY_FOR_DELIVERY' && riders.length > 0 && (
+                  <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <User size={16} />
+                      Assign Delivery Rider
+                    </label>
+                    <select
+                      onChange={(e) => e.target.value && assignRider(order.id, e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      defaultValue=""
+                    >
+                      <option value="">Select a rider...</option>
+                      {riders.map((rider) => (
+                        <option key={rider.id} value={rider.id}>
+                          {rider.name} - {rider.phone}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {nextActions.length > 0 && (
                   <div className="flex gap-2 flex-wrap">

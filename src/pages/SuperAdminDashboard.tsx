@@ -43,11 +43,19 @@ interface SubscriptionConfig {
   overdue_grace_days: number;
 }
 
+interface SalesStats {
+  totalRevenue: number;
+  totalOrders: number;
+  activeRestaurants: number;
+  trialRestaurants: number;
+}
+
 export function SuperAdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'config'>('restaurants');
+  const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'config'>('restaurants');
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [payments, setPayments] = useState<PaymentReceipt[]>([]);
   const [configs, setConfigs] = useState<SubscriptionConfig[]>([]);
+  const [salesStats, setSalesStats] = useState<SalesStats>({ totalRevenue: 0, totalOrders: 0, activeRestaurants: 0, trialRestaurants: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -75,6 +83,27 @@ export function SuperAdminDashboard() {
           `)
           .order('submitted_at', { ascending: false });
         setPayments(data || []);
+      } else if (activeTab === 'sales') {
+        const { data: ordersData } = await supabase
+          .from('orders')
+          .select('total_amount, status');
+
+        const { data: restaurantsData } = await supabase
+          .from('restaurants')
+          .select('status');
+
+        if (ordersData && restaurantsData) {
+          const totalRevenue = ordersData
+            .filter(o => o.status !== 'CANCELLED')
+            .reduce((sum, order) => sum + order.total_amount, 0);
+
+          setSalesStats({
+            totalRevenue,
+            totalOrders: ordersData.filter(o => o.status !== 'CANCELLED').length,
+            activeRestaurants: restaurantsData.filter(r => r.status === 'ACTIVE').length,
+            trialRestaurants: restaurantsData.filter(r => r.status === 'TRIAL').length,
+          });
+        }
       } else if (activeTab === 'config') {
         const { data } = await supabase
           .from('subscription_configs')
@@ -164,7 +193,7 @@ export function SuperAdminDashboard() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex gap-4 mb-8">
+        <div className="flex gap-4 mb-8 flex-wrap">
           <button
             onClick={() => setActiveTab('restaurants')}
             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
@@ -175,6 +204,17 @@ export function SuperAdminDashboard() {
           >
             <Building2 size={20} />
             Restaurants
+          </button>
+          <button
+            onClick={() => setActiveTab('sales')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
+              activeTab === 'sales'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Clock size={20} />
+            Sales Report
           </button>
           <button
             onClick={() => setActiveTab('payments')}
@@ -285,6 +325,88 @@ export function SuperAdminDashboard() {
                       })}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'sales' && (
+              <div className="space-y-6">
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-medium text-gray-600">Total Revenue</h3>
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <DollarSign size={20} className="text-green-600" />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900">
+                      ${salesStats.totalRevenue.toFixed(2)}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">From all restaurants</p>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-medium text-gray-600">Total Orders</h3>
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <CheckCircle size={20} className="text-blue-600" />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900">{salesStats.totalOrders}</p>
+                    <p className="text-sm text-gray-500 mt-1">Completed orders</p>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-medium text-gray-600">Active Restaurants</h3>
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <Building2 size={20} className="text-green-600" />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900">{salesStats.activeRestaurants}</p>
+                    <p className="text-sm text-gray-500 mt-1">Paying customers</p>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-medium text-gray-600">Trial Restaurants</h3>
+                      <div className="p-2 bg-yellow-100 rounded-lg">
+                        <Clock size={20} className="text-yellow-600" />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900">{salesStats.trialRestaurants}</p>
+                    <p className="text-sm text-gray-500 mt-1">On trial period</p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Platform Overview</h3>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600 mb-1">Average Revenue per Restaurant</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        ${salesStats.activeRestaurants > 0
+                          ? (salesStats.totalRevenue / salesStats.activeRestaurants).toFixed(2)
+                          : '0.00'}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600 mb-1">Average Orders per Restaurant</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {salesStats.activeRestaurants > 0
+                          ? Math.round(salesStats.totalOrders / salesStats.activeRestaurants)
+                          : 0}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600 mb-1">Average Order Value</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        ${salesStats.totalOrders > 0
+                          ? (salesStats.totalRevenue / salesStats.totalOrders).toFixed(2)
+                          : '0.00'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
