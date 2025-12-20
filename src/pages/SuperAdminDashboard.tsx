@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { formatCurrency } from '../lib/utils';
 import { Building2, DollarSign, Clock, CheckCircle, XCircle, Settings, LogOut } from 'lucide-react';
 
 interface Restaurant {
@@ -46,8 +47,8 @@ interface SubscriptionConfig {
 }
 
 interface SalesStats {
-  platformRevenue: number;
-  monthlyRevenue: number;
+  platformRevenueByCurrency: { currency: string; amount: number }[];
+  monthlyRevenueByCurrency: { currency: string; amount: number }[];
   totalRenewals: number;
   activeRestaurants: number;
   trialRestaurants: number;
@@ -65,8 +66,8 @@ export function SuperAdminDashboard() {
   const [payments, setPayments] = useState<PaymentReceipt[]>([]);
   const [configs, setConfigs] = useState<SubscriptionConfig[]>([]);
   const [salesStats, setSalesStats] = useState<SalesStats>({
-    platformRevenue: 0,
-    monthlyRevenue: 0,
+    platformRevenueByCurrency: [],
+    monthlyRevenueByCurrency: [],
     totalRenewals: 0,
     activeRestaurants: 0,
     trialRestaurants: 0,
@@ -108,17 +109,22 @@ export function SuperAdminDashboard() {
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
         const [paymentsData, restaurantsData, productsData, ordersData, configsData] = await Promise.all([
-          supabase.from('payment_receipts').select('amount, status, submitted_at'),
-          supabase.from('restaurants').select('status, created_at'),
+          supabase.from('payment_receipts').select('amount, status, submitted_at, currency'),
+          supabase.from('restaurants').select('status, created_at, currency'),
           supabase.from('products').select('id'),
           supabase.from('orders').select('id, created_at, status').gte('created_at', startOfMonth.toISOString()),
-          supabase.from('subscription_configs').select('monthly_price')
+          supabase.from('subscription_configs').select('monthly_price, currency')
         ]);
 
         if (paymentsData.data && restaurantsData.data) {
           const approvedPayments = paymentsData.data.filter(p => p.status === 'APPROVED');
-          const platformRevenue = approvedPayments.reduce((sum, p) => sum + p.amount, 0);
           const totalRenewals = approvedPayments.length;
+
+          const platformRevenueByCurrency: { [key: string]: number } = {};
+          approvedPayments.forEach(p => {
+            const curr = p.currency || 'USD';
+            platformRevenueByCurrency[curr] = (platformRevenueByCurrency[curr] || 0) + p.amount;
+          });
 
           const activeRestaurants = restaurantsData.data.filter(r => r.status === 'ACTIVE').length;
           const trialRestaurants = restaurantsData.data.filter(r => r.status === 'TRIAL').length;
@@ -131,18 +137,22 @@ export function SuperAdminDashboard() {
             r => new Date(r.created_at) >= startOfMonth
           ).length;
 
-          const averageMonthlyPrice = configsData.data && configsData.data.length > 0
-            ? configsData.data.reduce((sum, c) => sum + c.monthly_price, 0) / configsData.data.length
-            : 0;
+          const monthlyRevenueByCurrency: { [key: string]: number } = {};
+          const activeRestaurantsData = restaurantsData.data.filter(r => r.status === 'ACTIVE');
 
-          const monthlyRevenue = activeRestaurants * averageMonthlyPrice;
+          configsData.data?.forEach(config => {
+            const restaurantCount = activeRestaurantsData.filter(r => r.currency === config.currency).length;
+            if (restaurantCount > 0) {
+              monthlyRevenueByCurrency[config.currency] = restaurantCount * config.monthly_price;
+            }
+          });
 
           const totalProducts = productsData.data?.length || 0;
           const totalOrdersThisMonth = ordersData.data?.filter(o => o.status !== 'CANCELLED').length || 0;
 
           setSalesStats({
-            platformRevenue,
-            monthlyRevenue,
+            platformRevenueByCurrency: Object.entries(platformRevenueByCurrency).map(([currency, amount]) => ({ currency, amount })),
+            monthlyRevenueByCurrency: Object.entries(monthlyRevenueByCurrency).map(([currency, amount]) => ({ currency, amount })),
             totalRenewals,
             activeRestaurants,
             trialRestaurants,
@@ -403,9 +413,19 @@ export function SuperAdminDashboard() {
                         <DollarSign size={20} className="text-green-600" />
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900">
-                      ${salesStats.platformRevenue.toFixed(2)}
-                    </p>
+                    {salesStats.platformRevenueByCurrency.length > 0 ? (
+                      <div className="space-y-1">
+                        {salesStats.platformRevenueByCurrency.map(({ currency, amount }) => (
+                          <p key={currency} className="text-2xl font-bold text-gray-900">
+                            {formatCurrency(amount, currency)}
+                          </p>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-3xl font-bold text-gray-900">
+                        {formatCurrency(0, 'USD')}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-500 mt-1">Total subscription revenue</p>
                   </div>
 
@@ -416,9 +436,19 @@ export function SuperAdminDashboard() {
                         <DollarSign size={20} className="text-blue-600" />
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900">
-                      ${salesStats.monthlyRevenue.toFixed(2)}
-                    </p>
+                    {salesStats.monthlyRevenueByCurrency.length > 0 ? (
+                      <div className="space-y-1">
+                        {salesStats.monthlyRevenueByCurrency.map(({ currency, amount }) => (
+                          <p key={currency} className="text-2xl font-bold text-gray-900">
+                            {formatCurrency(amount, currency)}
+                          </p>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-3xl font-bold text-gray-900">
+                        {formatCurrency(0, 'USD')}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-500 mt-1">Expected monthly income</p>
                   </div>
 
@@ -512,11 +542,19 @@ export function SuperAdminDashboard() {
                     </div>
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-600 mb-1">Average Revenue per Customer</p>
-                      <p className="text-2xl font-bold text-gray-900">
-                        ${salesStats.activeRestaurants > 0
-                          ? (salesStats.platformRevenue / salesStats.activeRestaurants).toFixed(2)
-                          : '0.00'}
-                      </p>
+                      {salesStats.platformRevenueByCurrency.length > 0 && salesStats.activeRestaurants > 0 ? (
+                        <div className="space-y-1">
+                          {salesStats.platformRevenueByCurrency.map(({ currency, amount }) => (
+                            <p key={currency} className="text-xl font-bold text-gray-900">
+                              {formatCurrency(amount / salesStats.activeRestaurants, currency)}
+                            </p>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-2xl font-bold text-gray-900">
+                          {formatCurrency(0, 'USD')}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
