@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ShoppingCart as CartIcon, X, Plus, Minus, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useCart } from '../contexts/CartContext';
-import { formatCurrency } from '../lib/utils';
+import { calculateDeliveryFee, validateMinimumOrder, formatCurrency } from '../lib/utils';
 import type { Product, Bundle, RestaurantSettings, ProductCategory, FeaturedProduct } from '../lib/database.types';
 
 export function CustomerHome() {
@@ -21,6 +21,10 @@ export function CustomerHome() {
   const [loading, setLoading] = useState(true);
   const [currency, setCurrency] = useState<string>('AED');
   const { items, addItem, removeItem, updateQuantity, clearCart, total } = useCart();
+  
+  const [restaurantData, setRestaurantData] = useState<any>(null);
+  const [deliveryFee, setDeliveryFee] = useState<number>(0); // ADDED: Track delivery fee
+  const [finalTotal, setFinalTotal] = useState<number>(0); // ADDED: Track final total (cart + delivery)
 
   const [checkoutForm, setCheckoutForm] = useState({
     name: '',
@@ -50,6 +54,18 @@ export function CustomerHome() {
     }
   }, [showAddedToast]);
 
+  // ADDED: Recalculate delivery fee and final total when cart or self-pickup changes
+  useEffect(() => {
+    if (restaurantData) {
+      const fee = checkoutForm.isSelfPickup ? 0 : calculateDeliveryFee(
+        total,
+        restaurantData?.delivery_fee_tiers || []
+      );
+      setDeliveryFee(fee);
+      setFinalTotal(total + fee);
+    }
+  }, [total, restaurantData, checkoutForm.isSelfPickup]);
+
   const handleAddToCart = (item: { id: string; name: string; price: number; type: 'PRODUCT' | 'BUNDLE' }) => {
     addItem(item);
     setAddedItemName(item.name);
@@ -65,7 +81,7 @@ export function CustomerHome() {
 
       const { data: restaurant } = await supabase
         .from('restaurants')
-        .select('id, restaurant_currency')
+        .select('id, restaurant_currency, minimum_order_amount, delivery_fee_tiers')
         .eq('slug', restaurantSlug)
         .maybeSingle();
 
@@ -76,6 +92,7 @@ export function CustomerHome() {
 
       setRestaurantId(restaurant.id);
       setCurrency(restaurant.restaurant_currency || 'AED');
+      setRestaurantData(restaurant);
 
       const [productsRes, bundlesRes, settingsRes, categoriesRes, featuredRes] = await Promise.all([
         supabase.from('products').select('*').eq('is_active', true).eq('restaurant_id', restaurant.id),
@@ -101,6 +118,27 @@ export function CustomerHome() {
     e.preventDefault();
 
     try {
+      // Validate minimum order amount
+      const minOrderValidation = validateMinimumOrder(
+        total,
+        restaurantData?.minimum_order_amount || 0,
+        currency
+      );
+      
+      if (!minOrderValidation.valid) {
+        alert(minOrderValidation.message);
+        return;
+      }
+
+      // Calculate delivery fee (already calculated in useEffect)
+      const fee = checkoutForm.isSelfPickup ? 0 : calculateDeliveryFee(
+        total,
+        restaurantData?.delivery_fee_tiers || []
+      );
+
+      // Final total = cart total + delivery fee
+      const orderTotal = total + fee;
+
       const { data: order, error } = await supabase
         .from('orders')
         .insert({
@@ -108,7 +146,8 @@ export function CustomerHome() {
           restaurant_id: restaurantId,
           phone_number: checkoutForm.phone,
           delivery_address: checkoutForm.isSelfPickup ? 'Self Pickup' : `${checkoutForm.address}, ${checkoutForm.city}`,
-          total_amount: total,
+          total_amount: orderTotal, // Use final total (cart + delivery)
+          delivery_fee: fee, // Store delivery fee separately
           discount_applied: 0,
           payment_method: checkoutForm.paymentMethod,
           payment_confirmed: false,
@@ -155,6 +194,7 @@ export function CustomerHome() {
       setOrderPlaced(true);
       clearCart();
     } catch (error) {
+      console.error('Order error:', error);
       alert('Failed to place order. Please try again.');
     }
   };
@@ -213,6 +253,20 @@ export function CustomerHome() {
   }
 
   if (showCheckout) {
+    // Calculate final totals
+    const fee = checkoutForm.isSelfPickup ? 0 : calculateDeliveryFee(
+      total,
+      restaurantData?.delivery_fee_tiers || []
+    );
+    const orderTotal = total + fee;
+    
+    const minOrderValidation = validateMinimumOrder(
+      total,
+      restaurantData?.minimum_order_amount || 0,
+      currency
+    );
+    const isBelowMinimum = !minOrderValidation.valid;
+
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-2xl mx-auto">
@@ -300,17 +354,45 @@ export function CustomerHome() {
               </div>
 
               <div className="border-t pt-4 mt-6">
+                <div className="space-y-2 mb-4">
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Items Total:</span>
+                    <span>{formatCurrency(total, currency)}</span>
+                  </div>
+                  
+                  {!checkoutForm.isSelfPickup && fee > 0 && (
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Delivery Fee:</span>
+                      <span>{formatCurrency(fee, currency)}</span>
+                    </div>
+                  )}
+                </div>
+                
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-lg font-semibold">Total</span>
                   <span className="text-2xl font-bold text-orange-600">
-                    {formatCurrency(total, currency)}
+                    {formatCurrency(orderTotal, currency)}
                   </span>
                 </div>
+                
+                {isBelowMinimum && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-red-800 font-medium text-sm">
+                      ❌ {minOrderValidation.message}
+                    </p>
+                  </div>
+                )}
+                
                 <button
                   type="submit"
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold"
+                  disabled={isBelowMinimum}
+                  className={`w-full py-3 rounded-lg font-semibold ${
+                    isBelowMinimum
+                      ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+                      : 'bg-orange-500 hover:bg-orange-600 text-white'
+                  }`}
                 >
-                  Place Order
+                  {isBelowMinimum ? 'Order Below Minimum' : 'Place Order'}
                 </button>
               </div>
             </form>
@@ -337,6 +419,7 @@ export function CustomerHome() {
             >
               <CartIcon size={20} />
               Cart {items.length > 0 && `(${items.length})`}
+              {/* ADDED: Show final total in cart button */}
             </button>
           </div>
         </div>
@@ -491,20 +574,58 @@ export function CustomerHome() {
                 </div>
 
                 <div className="p-4 border-t bg-gray-50">
-                  <div className="flex justify-between items-center mb-4">
+                  {restaurantData?.minimum_order_amount > 0 && total < restaurantData.minimum_order_amount && (
+                    <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-yellow-800 font-medium text-sm">
+                        ⚠️ Minimum order: {formatCurrency(restaurantData.minimum_order_amount, currency)}
+                      </p>
+                      <p className="text-yellow-600 text-xs mt-1">
+                        Add {formatCurrency(restaurantData.minimum_order_amount - total, currency)} more to checkout
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Show cart items total */}
+                  <div className="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>Items Total:</span>
+                    <span>{formatCurrency(total, currency)}</span>
+                  </div>
+                  
+                  {/* Show delivery fee if applicable */}
+                  {deliveryFee > 0 && (
+                    <div className="flex justify-between text-sm text-gray-600 mb-1">
+                      <span>Delivery Fee:</span>
+                      <span>{formatCurrency(deliveryFee, currency)}</span>
+                    </div>
+                  )}
+                  
+                  {/* Show final total (items + delivery) */}
+                  <div className="flex justify-between items-center mb-4 mt-2">
                     <span className="text-lg font-semibold">Total</span>
                     <span className="text-2xl font-bold text-orange-600">
-                      {formatCurrency(total, currency)}
+                      {formatCurrency(finalTotal, currency)}
                     </span>
                   </div>
+                  
                   <button
                     onClick={() => {
+                      if (restaurantData?.minimum_order_amount > 0 && total < restaurantData.minimum_order_amount) {
+                        alert(`Minimum order amount is ${formatCurrency(restaurantData.minimum_order_amount, currency)}`);
+                        return;
+                      }
                       setShowCart(false);
                       setShowCheckout(true);
                     }}
-                    className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold"
+                    disabled={restaurantData?.minimum_order_amount > 0 && total < restaurantData.minimum_order_amount}
+                    className={`w-full py-3 rounded-lg font-semibold ${
+                      restaurantData?.minimum_order_amount > 0 && total < restaurantData.minimum_order_amount
+                        ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+                        : 'bg-orange-500 hover:bg-orange-600 text-white'
+                    }`}
                   >
-                    Proceed to Checkout
+                    {restaurantData?.minimum_order_amount > 0 && total < restaurantData.minimum_order_amount
+                      ? `Add ${formatCurrency(restaurantData.minimum_order_amount - total, currency)} more`
+                      : 'Proceed to Checkout'}
                   </button>
                 </div>
               </>
