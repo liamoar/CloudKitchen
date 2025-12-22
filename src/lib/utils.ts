@@ -70,6 +70,19 @@ export function getSubdomain(): string | null {
     return hostname.split('.')[0];
   }
 
+  // For bolt.host deployments (e.g., something.bolt.host is main, business1.something.bolt.host is subdomain)
+  if (hostname.endsWith('.bolt.host')) {
+    const parts = hostname.split('.');
+    // If exactly 3 parts (something.bolt.host), it's the main domain
+    if (parts.length === 3) {
+      return null;
+    }
+    // If 4+ parts (business1.something.bolt.host), first part is subdomain
+    if (parts.length >= 4) {
+      return parts[0];
+    }
+  }
+
   // For production (e.g., business1.yourdomain.com)
   const parts = hostname.split('.');
 
