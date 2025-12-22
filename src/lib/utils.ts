@@ -83,6 +83,19 @@ export function getSubdomain(): string | null {
     }
   }
 
+  // For vercel.app deployments (e.g., something.vercel.app is main, business1.something.vercel.app is subdomain)
+  if (hostname.endsWith('.vercel.app')) {
+    const parts = hostname.split('.');
+    // If exactly 3 parts (something.vercel.app), it's the main domain
+    if (parts.length === 3) {
+      return null;
+    }
+    // If 4+ parts (business1.something.vercel.app), first part is subdomain
+    if (parts.length >= 4) {
+      return parts[0];
+    }
+  }
+
   // For production (e.g., business1.yourdomain.com)
   const parts = hostname.split('.');
 
