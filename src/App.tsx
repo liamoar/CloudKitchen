@@ -60,6 +60,11 @@ function RestaurantAdminProtectedRoute({ children }: { children: React.ReactNode
 
 function App() {
   const onMainDomain = isMainDomain();
+  const subdomain = getSubdomain();
+
+  console.log('Hostname:', window.location.hostname);
+  console.log('Subdomain:', subdomain);
+  console.log('Is Main Domain:', onMainDomain);
 
   if (onMainDomain) {
     return (
