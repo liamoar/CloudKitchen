@@ -113,16 +113,31 @@ export function ProductManagement() {
     if (!restaurantId) return;
 
     try {
-      const productData = {
+      const productData: any = {
         restaurant_id: restaurantId,
         name: productForm.name,
         description: productForm.description,
         price: parseFloat(productForm.price),
-        stock_quantity: parseInt(productForm.stock_quantity),
-        image_url: productForm.image_url || null,
-        category_id: productForm.category_id || null,
         is_active: productForm.is_active,
       };
+
+      if (settings?.enable_stock_management) {
+        productData.stock_quantity = productForm.stock_quantity ? parseInt(productForm.stock_quantity) : null;
+      } else {
+        productData.stock_quantity = null;
+      }
+
+      if (settings?.show_product_image) {
+        productData.image_url = productForm.image_url || null;
+      } else {
+        productData.image_url = null;
+      }
+
+      if (settings?.enable_categories) {
+        productData.category_id = productForm.category_id || null;
+      } else {
+        productData.category_id = null;
+      }
 
       if (editingProductId) {
         const { error } = await supabase.from('products').update(productData).eq('id', editingProductId).eq('restaurant_id', restaurantId);
@@ -179,7 +194,7 @@ export function ProductManagement() {
       name: product.name,
       description: product.description,
       price: product.price.toString(),
-      stock_quantity: product.stock_quantity.toString(),
+      stock_quantity: product.stock_quantity !== null && product.stock_quantity !== undefined ? product.stock_quantity.toString() : '',
       image_url: product.image_url || '',
       category_id: product.category_id || '',
       is_active: product.is_active,
@@ -602,7 +617,7 @@ export function ProductManagement() {
                   <span className="text-orange-600 font-semibold">
                     {settings?.currency || 'INR'} {product.price}
                   </span>
-                  {settings?.enable_stock_management && (
+                  {settings?.enable_stock_management && product.stock_quantity !== null && product.stock_quantity !== undefined && (
                     <span className="text-gray-600">Stock: {product.stock_quantity}</span>
                   )}
                 </div>
