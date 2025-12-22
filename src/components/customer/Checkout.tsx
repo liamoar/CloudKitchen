@@ -3,8 +3,7 @@ import { ArrowLeft, CheckCircle, Truck, Store as StoreIcon, AlertCircle } from '
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import { supabase } from '../../lib/supabase';
-import { useParams } from 'react-router-dom';
-import { formatCurrency, calculateDeliveryFee, validateMinimumOrder, type DeliveryFeeTier } from '../../lib/utils';
+import { formatCurrency, calculateDeliveryFee, validateMinimumOrder, getSubdomain, type DeliveryFeeTier } from '../../lib/utils';
 
 interface CheckoutProps {
   onBack: () => void;
@@ -13,7 +12,7 @@ interface CheckoutProps {
 export function Checkout({ onBack }: CheckoutProps) {
   const { user } = useAuth();
   const { items, total, clearCart } = useCart();
-  const { restaurantSlug } = useParams();
+  const subdomain = getSubdomain();
   const [loading, setLoading] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState<string>('');
@@ -37,12 +36,12 @@ export function Checkout({ onBack }: CheckoutProps) {
 
   useEffect(() => {
     const loadRestaurant = async () => {
-      if (!restaurantSlug) return;
+      if (!subdomain) return;
 
       const { data } = await supabase
         .from('restaurants')
         .select('id, restaurant_currency, minimum_order_amount, delivery_fee_tiers')
-        .eq('slug', restaurantSlug)
+        .eq('subdomain', subdomain)
         .maybeSingle();
 
       if (data) {
@@ -54,7 +53,7 @@ export function Checkout({ onBack }: CheckoutProps) {
     };
 
     loadRestaurant();
-  }, [restaurantSlug]);
+  }, [subdomain]);
 
   useEffect(() => {
     if (deliveryType === 'DELIVERY' && deliveryFeeTiers.length > 0) {
@@ -152,7 +151,7 @@ export function Checkout({ onBack }: CheckoutProps) {
   };
 
   if (orderPlaced) {
-    const trackingUrl = `${window.location.origin}/${restaurantSlug}/track/${trackingToken}`;
+    const trackingUrl = `${window.location.origin}/track/${trackingToken}`;
 
     return (
       <div className="bg-white rounded-lg shadow-md p-8 text-center">

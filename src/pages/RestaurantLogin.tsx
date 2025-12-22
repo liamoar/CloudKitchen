@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Store } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export function RestaurantLogin() {
-  const { restaurantSlug } = useParams();
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
@@ -19,7 +18,7 @@ export function RestaurantLogin() {
 
     try {
       await signIn(phone, password);
-      navigate(`/${restaurantSlug}/admin`);
+      navigate('/admin');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in');
     } finally {

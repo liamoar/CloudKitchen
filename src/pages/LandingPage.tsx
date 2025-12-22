@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Store, Package, TrendingUp, Shield, Zap, Globe, CheckCircle, Truck, BarChart, Clock, Users, CreditCard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { validateSubdomain, buildSubdomainUrl } from '../lib/utils';
 
 interface SubscriptionTier {
   id: string;
@@ -22,6 +23,7 @@ export function LandingPage() {
 
   const [formData, setFormData] = useState({
     businessName: '',
+    subdomain: '',
     ownerName: '',
     phone: '',
     email: '',
@@ -30,6 +32,9 @@ export function LandingPage() {
     city: '',
     tier: 'Basic'
   });
+
+  const [subdomainError, setSubdomainError] = useState('');
+  const [checkingSubdomain, setCheckingSubdomain] = useState(false);
 
   useEffect(() => {
     loadTiers();
@@ -60,13 +65,75 @@ export function LandingPage() {
     }
   };
 
+  const checkSubdomainAvailability = async (subdomain: string) => {
+    const validation = validateSubdomain(subdomain);
+    if (!validation.valid) {
+      setSubdomainError(validation.message || 'Invalid subdomain');
+      return false;
+    }
+
+    setCheckingSubdomain(true);
+    try {
+      const { data, error } = await supabase
+        .from('restaurants')
+        .select('id')
+        .eq('subdomain', subdomain.toLowerCase())
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking subdomain:', error);
+        setSubdomainError('Error checking availability');
+        return false;
+      }
+
+      if (data) {
+        setSubdomainError('This subdomain is already taken');
+        return false;
+      }
+
+      setSubdomainError('');
+      return true;
+    } catch (err) {
+      setSubdomainError('Error checking availability');
+      return false;
+    } finally {
+      setCheckingSubdomain(false);
+    }
+  };
+
+  const handleSubdomainChange = async (value: string) => {
+    const lowercase = value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    setFormData({ ...formData, subdomain: lowercase });
+
+    if (lowercase.length >= 3) {
+      await checkSubdomainAvailability(lowercase);
+    } else if (lowercase.length > 0) {
+      setSubdomainError('Subdomain must be at least 3 characters');
+    } else {
+      setSubdomainError('');
+    }
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      const slug = `b${Date.now()}-${formData.businessName.toLowerCase().replace(/\s+/g, '-')}`;
+      if (!formData.subdomain) {
+        setError('Please enter a subdomain for your business');
+        setLoading(false);
+        return;
+      }
+
+      const isAvailable = await checkSubdomainAvailability(formData.subdomain);
+      if (!isAvailable) {
+        setError(subdomainError || 'Subdomain is not available');
+        setLoading(false);
+        return;
+      }
+
+      const slug = formData.subdomain;
 
       const { data: owner, error: ownerError } = await supabase
         .from('users')
@@ -100,6 +167,7 @@ export function LandingPage() {
         .insert({
           name: formData.businessName,
           slug: slug,
+          subdomain: formData.subdomain.toLowerCase(),
           owner_id: owner.id,
           currency: currency,
           country: formData.country,
@@ -140,7 +208,7 @@ export function LandingPage() {
       }
 
       localStorage.setItem('user', JSON.stringify(owner));
-      navigate(`/${slug}/admin`);
+      window.location.href = buildSubdomainUrl(formData.subdomain, '/admin');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account');
     } finally {
@@ -226,6 +294,43 @@ export function LandingPage() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   placeholder="Your Business Name"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Your Business URL
+                </label>
+                <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-transparent">
+                  <input
+                    type="text"
+                    required
+                    value={formData.subdomain}
+                    onChange={(e) => handleSubdomainChange(e.target.value)}
+                    className="flex-1 px-4 py-3 border-0 focus:ring-0"
+                    placeholder="mybusiness"
+                    minLength={3}
+                    maxLength={63}
+                    pattern="[a-z0-9][a-z0-9-]*[a-z0-9]"
+                  />
+                  <span className="px-4 py-3 bg-gray-100 text-gray-600 text-sm whitespace-nowrap border-l">
+                    .yourdomain.com
+                  </span>
+                </div>
+                {checkingSubdomain && (
+                  <p className="text-sm text-blue-600 mt-1">Checking availability...</p>
+                )}
+                {subdomainError && (
+                  <p className="text-sm text-red-600 mt-1">{subdomainError}</p>
+                )}
+                {!subdomainError && formData.subdomain.length >= 3 && !checkingSubdomain && (
+                  <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                    <CheckCircle size={14} />
+                    Available! Your store will be at: {formData.subdomain}.yourdomain.com
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Choose a unique subdomain for your business (3-63 characters, lowercase letters, numbers, and hyphens only)
+                </p>
               </div>
 
               <div>
@@ -337,8 +442,8 @@ export function LandingPage() {
 
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-4 rounded-lg font-semibold text-lg transition-all shadow-lg disabled:opacity-50"
+                disabled={loading || !!subdomainError || checkingSubdomain || formData.subdomain.length < 3}
+                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-4 rounded-lg font-semibold text-lg transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Creating Account...' : 'Start Free Trial'}
               </button>

@@ -181,8 +181,8 @@ export function OrderManagement() {
             .limit(1)
             .maybeSingle();
 
-          if (customerToken && restaurant?.slug) {
-            customerLink = `${window.location.origin}/${restaurant.slug}/track/${customerToken.token}`;
+          if (customerToken) {
+            customerLink = `${window.location.origin}/track/${customerToken.token}`;
           }
 
           return { 

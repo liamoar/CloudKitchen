@@ -54,3 +54,97 @@ export function validateMinimumOrder(
   }
   return { valid: true };
 }
+
+export function getSubdomain(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  const hostname = window.location.hostname;
+
+  // For localhost development, check for subdomain in format: subdomain.localhost
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return null;
+  }
+
+  // For development with subdomain (e.g., business1.localhost)
+  if (hostname.endsWith('.localhost')) {
+    return hostname.split('.')[0];
+  }
+
+  // For production (e.g., business1.yourdomain.com)
+  const parts = hostname.split('.');
+
+  // If hostname has 3+ parts (subdomain.domain.com), extract subdomain
+  if (parts.length >= 3) {
+    // Don't treat 'www' as a subdomain
+    if (parts[0] === 'www') {
+      return null;
+    }
+    return parts[0];
+  }
+
+  return null;
+}
+
+export function isMainDomain(): boolean {
+  const subdomain = getSubdomain();
+  return subdomain === null;
+}
+
+export function buildSubdomainUrl(subdomain: string, path: string = ''): string {
+  if (typeof window === 'undefined') return '';
+
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
+  const port = window.location.port;
+
+  // For localhost development
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    const portPart = port ? `:${port}` : '';
+    return `${protocol}//${subdomain}.localhost${portPart}${path}`;
+  }
+
+  // For production - replace subdomain or add it
+  const currentSubdomain = getSubdomain();
+  let newHostname;
+
+  if (currentSubdomain) {
+    // Replace existing subdomain
+    newHostname = hostname.replace(currentSubdomain, subdomain);
+  } else {
+    // Add subdomain to main domain
+    newHostname = `${subdomain}.${hostname}`;
+  }
+
+  const portPart = port ? `:${port}` : '';
+  return `${protocol}//${newHostname}${portPart}${path}`;
+}
+
+export function validateSubdomain(subdomain: string): { valid: boolean; message?: string } {
+  // Check length (3-63 characters)
+  if (subdomain.length < 3 || subdomain.length > 63) {
+    return {
+      valid: false,
+      message: 'Subdomain must be between 3 and 63 characters',
+    };
+  }
+
+  // Check format: alphanumeric and hyphens, must start and end with alphanumeric
+  const subdomainRegex = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+  if (!subdomainRegex.test(subdomain)) {
+    return {
+      valid: false,
+      message: 'Subdomain can only contain lowercase letters, numbers, and hyphens (cannot start or end with hyphen)',
+    };
+  }
+
+  // Reserved subdomains
+  const reserved = ['www', 'admin', 'api', 'app', 'mail', 'ftp', 'localhost', 'staging', 'dev', 'test'];
+  if (reserved.includes(subdomain)) {
+    return {
+      valid: false,
+      message: 'This subdomain is reserved and cannot be used',
+    };
+  }
+
+  return { valid: true };
+}

@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ShoppingCart as CartIcon, X, Plus, Minus, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useCart } from '../contexts/CartContext';
-import { calculateDeliveryFee, validateMinimumOrder, formatCurrency } from '../lib/utils';
+import { calculateDeliveryFee, validateMinimumOrder, formatCurrency, getSubdomain, buildSubdomainUrl } from '../lib/utils';
 import type { Product, Bundle, RestaurantSettings, ProductCategory, FeaturedProduct } from '../lib/database.types';
 
 export function CustomerHome() {
-  const { restaurantSlug } = useParams();
   const navigate = useNavigate();
+  const subdomain = getSubdomain();
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [bundles, setBundles] = useState<Bundle[]>([]);
@@ -74,7 +74,7 @@ export function CustomerHome() {
 
   const loadData = async () => {
     try {
-      if (!restaurantSlug) {
+      if (!subdomain) {
         navigate('/');
         return;
       }
@@ -82,7 +82,7 @@ export function CustomerHome() {
       const { data: restaurant } = await supabase
         .from('restaurants')
         .select('id, restaurant_currency, minimum_order_amount, delivery_fee_tiers')
-        .eq('slug', restaurantSlug)
+        .eq('subdomain', subdomain)
         .maybeSingle();
 
       if (!restaurant) {
@@ -214,7 +214,7 @@ export function CustomerHome() {
   }
 
   if (orderPlaced) {
-    const trackingUrl = `${window.location.origin}/${restaurantSlug}/track/${trackingToken}`;
+    const trackingUrl = `${window.location.origin}/track/${trackingToken}`;
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">

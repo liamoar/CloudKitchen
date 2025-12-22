@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { LandingPage } from './pages/LandingPage';
 import { CustomerHome } from './pages/CustomerHome';
@@ -8,6 +8,7 @@ import { RestroAdminDashboard } from './pages/RestroAdminDashboard';
 import { RestaurantLogin } from './pages/RestaurantLogin';
 import { OrderTracking } from './pages/OrderTracking';
 import { RiderDelivery } from './pages/RiderDelivery';
+import { getSubdomain, isMainDomain } from './lib/utils';
 
 function SuperAdminProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -33,7 +34,6 @@ function SuperAdminProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function RestaurantAdminProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const { restaurantSlug } = useParams();
 
   if (loading) {
     return (
@@ -44,7 +44,7 @@ function RestaurantAdminProtectedRoute({ children }: { children: React.ReactNode
   }
 
   if (!user) {
-    return <Navigate to={`/${restaurantSlug}/login`} replace />;
+    return <Navigate to="/login" replace />;
   }
 
   if (user.role === 'SUPER_ADMIN') {
@@ -59,31 +59,44 @@ function RestaurantAdminProtectedRoute({ children }: { children: React.ReactNode
 }
 
 function App() {
+  const onMainDomain = isMainDomain();
+
+  if (onMainDomain) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/backend-system" element={<SuperAdminLogin />} />
+          <Route
+            path="/backend-system/dashboard"
+            element={
+              <SuperAdminProtectedRoute>
+                <SuperAdminDashboard />
+              </SuperAdminProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/backend-system" element={<SuperAdminLogin />} />
+        <Route path="/" element={<CustomerHome />} />
+        <Route path="/login" element={<RestaurantLogin />} />
         <Route
-          path="/backend-system/dashboard"
-          element={
-            <SuperAdminProtectedRoute>
-              <SuperAdminDashboard />
-            </SuperAdminProtectedRoute>
-          }
-        />
-        <Route path="/track/:token" element={<OrderTracking />} />
-        <Route path="/rider/:token" element={<RiderDelivery />} />
-        <Route path="/:restaurantSlug" element={<CustomerHome />} />
-        <Route path="/:restaurantSlug/login" element={<RestaurantLogin />} />
-        <Route
-          path="/:restaurantSlug/admin"
+          path="/admin"
           element={
             <RestaurantAdminProtectedRoute>
               <RestroAdminDashboard />
             </RestaurantAdminProtectedRoute>
           }
         />
+        <Route path="/track/:token" element={<OrderTracking />} />
+        <Route path="/rider/:token" element={<RiderDelivery />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
