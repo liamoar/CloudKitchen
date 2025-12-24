@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X, CreditCard, Users, Store, Phone, Mail, Clock, ExternalLink, MapPin, UserCheck } from 'lucide-react';
+import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X, CreditCard, Users, Store, Phone, Mail, Clock, ExternalLink, MapPin, UserCheck, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -22,6 +22,9 @@ interface RestaurantInfo {
   is_open: boolean;
   currency: string;
   country: string;
+  subscription_status?: string;
+  trial_ends_at?: string;
+  subscription_ends_at?: string;
 }
 
 export function RestroAdminDashboard() {
@@ -30,6 +33,8 @@ export function RestroAdminDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('orders');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [restaurantInfo, setRestaurantInfo] = useState<RestaurantInfo | null>(null);
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
+  const [showTrialWarning, setShowTrialWarning] = useState(false);
 
   useEffect(() => {
     loadRestaurantInfo();
@@ -48,6 +53,9 @@ export function RestroAdminDashboard() {
           is_open,
           country,
           restaurant_currency,
+          subscription_status,
+          trial_ends_at,
+          subscription_ends_at,
           tier:subscription_tiers(currency)
         `)
         .eq('owner_id', user.id)
@@ -81,7 +89,20 @@ export function RestroAdminDashboard() {
           is_open: restaurant.is_open,
           currency: currency,
           country: restaurant.country || 'US',
+          subscription_status: restaurant.subscription_status,
+          trial_ends_at: restaurant.trial_ends_at,
+          subscription_ends_at: restaurant.subscription_ends_at,
         });
+
+        if (restaurant.subscription_status === 'TRIAL' && restaurant.trial_ends_at) {
+          const daysLeft = Math.ceil((new Date(restaurant.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          setTrialDaysLeft(daysLeft);
+          setShowTrialWarning(daysLeft <= 5 && daysLeft >= 0);
+        }
+
+        if (restaurant.subscription_status === 'OVERDUE' || restaurant.subscription_status === 'SUSPENDED') {
+          setActiveTab('subscription');
+        }
       }
     } catch (error) {
       console.error('Error in loadRestaurantInfo:', error);
@@ -166,6 +187,78 @@ export function RestroAdminDashboard() {
         </div>
       </header>
 
+      {showTrialWarning && trialDaysLeft !== null && (
+        <div className="bg-yellow-50 border-b border-yellow-200">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center gap-3">
+              <AlertTriangle size={24} className="text-yellow-600 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-yellow-900">
+                  {trialDaysLeft === 0 ? 'Your trial ends today!' : `Your trial ends in ${trialDaysLeft} ${trialDaysLeft === 1 ? 'day' : 'days'}!`}
+                </p>
+                <p className="text-xs text-yellow-800">
+                  Please subscribe to a plan to continue using all features without interruption.
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab('subscription')}
+                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Subscribe Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {restaurantInfo?.subscription_status === 'OVERDUE' && (
+        <div className="bg-red-50 border-b border-red-200">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center gap-3">
+              <AlertTriangle size={24} className="text-red-600 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-900">
+                  Your subscription payment is overdue!
+                </p>
+                <p className="text-xs text-red-800">
+                  Please complete your payment to avoid service suspension.
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab('subscription')}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Pay Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {restaurantInfo?.subscription_status === 'SUSPENDED' && (
+        <div className="bg-red-600">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center gap-3">
+              <AlertTriangle size={24} className="text-white flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-white">
+                  Your account has been suspended due to non-payment
+                </p>
+                <p className="text-xs text-red-100">
+                  Your customer store is currently unavailable. Complete payment to restore access.
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab('subscription')}
+                className="px-4 py-2 bg-white text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors"
+              >
+                Restore Access
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 py-8">
         <nav className={`flex gap-4 mb-8 flex-wrap md:flex-nowrap ${showMobileMenu ? 'flex-col' : 'flex-row'}`}>
           {tabs.map(({ id, label, icon: Icon }) => (
@@ -194,13 +287,31 @@ export function RestroAdminDashboard() {
           </button>
         </nav>
 
-        {activeTab === 'settings' && <RestaurantSettings />}
-        {activeTab === 'products' && <ProductManagement currency={restaurantInfo?.currency} />}
-        {activeTab === 'orders' && <OrderManagement currency={restaurantInfo?.currency} />}
-        {activeTab === 'customers' && <CustomerManagement />}
-        {activeTab === 'riders' && <RiderManagement />}
-        {activeTab === 'sales' && <SalesAnalytics currency={restaurantInfo?.currency} />}
-        {activeTab === 'subscription' && <SubscriptionStatus currency={restaurantInfo?.currency} />}
+        {restaurantInfo?.subscription_status === 'SUSPENDED' ? (
+          <div className="bg-white rounded-lg shadow-md p-8 text-center">
+            <AlertTriangle size={64} className="mx-auto text-red-500 mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Suspended</h2>
+            <p className="text-gray-600 mb-6">
+              Your account is suspended. Please go to the Subscription tab to complete payment and restore access.
+            </p>
+            <button
+              onClick={() => setActiveTab('subscription')}
+              className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold"
+            >
+              Go to Subscription
+            </button>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'settings' && <RestaurantSettings />}
+            {activeTab === 'products' && <ProductManagement currency={restaurantInfo?.currency} />}
+            {activeTab === 'orders' && <OrderManagement currency={restaurantInfo?.currency} />}
+            {activeTab === 'customers' && <CustomerManagement />}
+            {activeTab === 'riders' && <RiderManagement />}
+            {activeTab === 'sales' && <SalesAnalytics currency={restaurantInfo?.currency} />}
+            {activeTab === 'subscription' && <SubscriptionStatus currency={restaurantInfo?.currency} />}
+          </>
+        )}
       </div>
     </div>
   );
