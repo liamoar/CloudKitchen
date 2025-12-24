@@ -516,20 +516,12 @@ export function LandingPage() {
               </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">hejo.app</span>
             </div>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/business-login')}
-                className="text-sm text-gray-600 hover:text-gray-900 font-medium hidden sm:block"
-              >
-                Business Login
-              </button>
-              <button
-                onClick={() => setShowSignup(true)}
-                className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white px-6 py-2 rounded-lg font-semibold text-sm transition-all shadow-md"
-              >
-                Get Started Free
-              </button>
-            </div>
+            <button
+              onClick={() => setShowSignup(true)}
+              className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white px-6 py-2 rounded-lg font-semibold text-sm transition-all shadow-md"
+            >
+              Get Started Free
+            </button>
           </div>
         </div>
       </nav>
