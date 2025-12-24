@@ -500,13 +500,18 @@ export function SuperAdminDashboard() {
       }
 
       if (ownerId) {
-        const { error: userError } = await supabase
+        const { data: userData } = await supabase
           .from('users')
-          .delete()
-          .eq('id', ownerId);
+          .select('auth_id')
+          .eq('id', ownerId)
+          .maybeSingle();
 
-        if (userError) {
-          console.error('Error deleting user:', userError);
+        if (userData?.auth_id) {
+          const { error: authError } = await supabase.auth.admin.deleteUser(userData.auth_id);
+
+          if (authError) {
+            console.error('Error deleting auth user:', authError);
+          }
         }
       }
 
