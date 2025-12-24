@@ -26,6 +26,10 @@ export function RestaurantSettings() {
     enable_stock_management: true,
     enable_categories: false,
     opening_time: {} as Record<string, { open: string; close: string }>,
+    bank_name: '',
+    account_holder_name: '',
+    account_number: '',
+    bank_qr_code_url: '',
   });
 
   const [minimumOrderAmount, setMinimumOrderAmount] = useState<number>(0);
@@ -132,6 +136,10 @@ export function RestaurantSettings() {
           enable_stock_management: data.enable_stock_management,
           enable_categories: data.enable_categories,
           opening_time: data.opening_time,
+          bank_name: data.bank_name || '',
+          account_holder_name: data.account_holder_name || '',
+          account_number: data.account_number || '',
+          bank_qr_code_url: data.bank_qr_code_url || '',
         });
       }
     } catch (error) {
@@ -271,18 +279,16 @@ export function RestaurantSettings() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
-            <select
+            <input
+              type="text"
               value={formData.currency}
-              onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            >
-              <option value="AED">AED (د.إ) - UAE Dirham</option>
-              <option value="EUR">EUR (€) - Euro</option>
-              <option value="GBP">GBP (£) - British Pound</option>
-              <option value="INR">INR (₹) - Indian Rupee</option>
-              <option value="NPR">NPR (रू) - Nepalese Rupee</option>
-              <option value="USD">USD ($) - US Dollar</option>
-            </select>
+              disabled
+              className="w-full px-4 py-2 border rounded-lg bg-gray-100 cursor-not-allowed text-gray-600"
+              title="Currency is set based on your country tier and cannot be changed"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Currency is determined by your country tier and cannot be modified
+            </p>
           </div>
         </div>
 
@@ -472,6 +478,60 @@ export function RestaurantSettings() {
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="border-t pt-6">
+          <h3 className="font-semibold text-gray-800 mb-4">Bank Details for Customer Payments</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Add your bank details so customers can see payment information after order completion
+          </p>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+              <input
+                type="text"
+                value={formData.bank_name}
+                onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="e.g., Emirates NBD"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Account Holder Name</label>
+              <input
+                type="text"
+                value={formData.account_holder_name}
+                onChange={(e) => setFormData({ ...formData, account_holder_name: e.target.value })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="Your business name"
+              />
+            </div>
+          </div>
+          <div className="mt-4 grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Account Number / IBAN</label>
+              <input
+                type="text"
+                value={formData.account_number}
+                onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="AE123456789012345678901"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bank QR Code URL (optional)</label>
+              <input
+                type="url"
+                value={formData.bank_qr_code_url}
+                onChange={(e) => setFormData({ ...formData, bank_qr_code_url: e.target.value })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="https://example.com/qr-code.png"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            These details will be shown to customers on the order tracking page after order completion
+          </p>
         </div>
 
         <div className="border-t pt-6">

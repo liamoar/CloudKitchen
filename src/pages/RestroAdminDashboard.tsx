@@ -38,40 +38,53 @@ export function RestroAdminDashboard() {
   const loadRestaurantInfo = async () => {
     if (!user?.id) return;
 
-    const { data: restaurant } = await supabase
-      .from('restaurants')
-      .select(`
-        id,
-        subdomain,
-        is_open,
-        country,
-        restaurant_currency,
-        tier:subscription_tiers(currency)
-      `)
-      .eq('owner_id', user.id)
-      .maybeSingle();
-
-    if (restaurant) {
-      const { data: settings } = await supabase
-        .from('restaurant_settings')
-        .select('name, phone, email, address')
-        .eq('restaurant_id', restaurant.id)
+    try {
+      const { data: restaurant, error: restError } = await supabase
+        .from('restaurants')
+        .select(`
+          id,
+          name,
+          subdomain,
+          is_open,
+          country,
+          restaurant_currency,
+          tier:subscription_tiers(currency)
+        `)
+        .eq('owner_id', user.id)
         .maybeSingle();
 
-      const currency = restaurant.tier?.currency || restaurant.restaurant_currency || 'USD';
+      if (restError) {
+        console.error('Error loading restaurant:', restError);
+        return;
+      }
 
-      if (settings) {
+      if (restaurant) {
+        const { data: settings, error: settingsError } = await supabase
+          .from('restaurant_settings')
+          .select('name, phone, email, address')
+          .eq('restaurant_id', restaurant.id)
+          .maybeSingle();
+
+        if (settingsError) {
+          console.error('Error loading settings:', settingsError);
+        }
+
+        const currency = restaurant.tier?.currency || restaurant.restaurant_currency || 'USD';
+        const restaurantName = settings?.name || restaurant.name || 'My Restaurant';
+
         setRestaurantInfo({
-          name: settings.name || 'My Restaurant',
-          phone: settings.phone || '',
-          email: settings.email || '',
-          address: settings.address || '',
+          name: restaurantName,
+          phone: settings?.phone || '',
+          email: settings?.email || '',
+          address: settings?.address || '',
           subdomain: restaurant.subdomain || '',
           is_open: restaurant.is_open,
           currency: currency,
           country: restaurant.country || 'US',
         });
       }
+    } catch (error) {
+      console.error('Error in loadRestaurantInfo:', error);
     }
   };
 

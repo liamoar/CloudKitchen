@@ -16,6 +16,10 @@ interface SubscriptionTier {
   trial_days: number;
   overdue_grace_days: number;
   is_active: boolean;
+  country_bank_name?: string;
+  country_account_holder?: string;
+  country_account_number?: string;
+  country_bank_qr_url?: string;
 }
 
 interface CountryGroup {
@@ -107,7 +111,11 @@ export default function CountryTierManagement() {
           currency: editForm.currency,
           trial_days: editForm.trial_days,
           overdue_grace_days: editForm.overdue_grace_days,
-          is_active: editForm.is_active
+          is_active: editForm.is_active,
+          country_bank_name: editForm.country_bank_name || null,
+          country_account_holder: editForm.country_account_holder || null,
+          country_account_number: editForm.country_account_number || null,
+          country_bank_qr_url: editForm.country_bank_qr_url || null,
         })
         .eq('id', editingTier)
         .select();
@@ -513,6 +521,7 @@ export default function CountryTierManagement() {
                 </thead>
                 <tbody className="divide-y">
                   {group.tiers.map((tier) => (
+                    <>
                     <tr key={tier.id} className={!tier.is_active ? 'bg-gray-50 opacity-60' : ''}>
                       {editingTier === tier.id ? (
                         <>
@@ -660,6 +669,61 @@ export default function CountryTierManagement() {
                         </>
                       )}
                     </tr>
+                    {editingTier === tier.id && (
+                      <tr key={`${tier.id}-bank`}>
+                        <td colSpan={9} className="px-4 py-4 bg-blue-50 border-t-2 border-blue-200">
+                          <div className="space-y-3">
+                            <h4 className="font-semibold text-gray-900 text-sm">Country-Level Bank Details for Subscription Payments</h4>
+                            <p className="text-xs text-gray-600">
+                              These bank details will be shown to restaurant owners when they need to pay for subscriptions
+                            </p>
+                            <div className="grid md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Bank Name</label>
+                                <input
+                                  type="text"
+                                  value={editForm.country_bank_name || ''}
+                                  onChange={(e) => setEditForm({ ...editForm, country_bank_name: e.target.value })}
+                                  className="w-full px-2 py-1 text-sm border rounded"
+                                  placeholder="e.g., Emirates NBD"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Account Holder</label>
+                                <input
+                                  type="text"
+                                  value={editForm.country_account_holder || ''}
+                                  onChange={(e) => setEditForm({ ...editForm, country_account_holder: e.target.value })}
+                                  className="w-full px-2 py-1 text-sm border rounded"
+                                  placeholder="Your company name"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Account Number / IBAN</label>
+                                <input
+                                  type="text"
+                                  value={editForm.country_account_number || ''}
+                                  onChange={(e) => setEditForm({ ...editForm, country_account_number: e.target.value })}
+                                  className="w-full px-2 py-1 text-sm border rounded"
+                                  placeholder="AE123456789..."
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">QR Code URL (optional)</label>
+                                <input
+                                  type="url"
+                                  value={editForm.country_bank_qr_url || ''}
+                                  onChange={(e) => setEditForm({ ...editForm, country_bank_qr_url: e.target.value })}
+                                  className="w-full px-2 py-1 text-sm border rounded"
+                                  placeholder="https://..."
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </>
                   ))}
                 </tbody>
               </table>

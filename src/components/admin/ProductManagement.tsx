@@ -18,6 +18,8 @@ export function ProductManagement() {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{message: string; type: 'success' | 'error'} | null>(null);
+  const [productLimit, setProductLimit] = useState<number>(-1);
+  const [limitReached, setLimitReached] = useState(false);
 
   const [productForm, setProductForm] = useState({
     name: '',
@@ -63,10 +65,14 @@ export function ProductManagement() {
     if (!user?.id) return;
     const { data } = await supabase
       .from('restaurants')
-      .select('id')
+      .select('id, tier:subscription_tiers(product_limit)')
       .eq('owner_id', user.id)
       .maybeSingle();
-    if (data) setRestaurantId(data.id);
+    if (data) {
+      setRestaurantId(data.id);
+      const limit = data.tier?.product_limit || -1;
+      setProductLimit(limit);
+    }
   };
 
   const loadSettings = async () => {
@@ -86,7 +92,14 @@ export function ProductManagement() {
       .select('*')
       .eq('restaurant_id', restaurantId)
       .order('created_at', { ascending: false });
-    if (data) setProducts(data);
+    if (data) {
+      setProducts(data);
+      if (productLimit !== -1 && data.length >= productLimit) {
+        setLimitReached(true);
+      } else {
+        setLimitReached(false);
+      }
+    }
   };
 
   const loadCategories = async () => {
@@ -111,6 +124,11 @@ export function ProductManagement() {
   const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurantId) return;
+
+    if (!editingProductId && limitReached) {
+      showNotification(`Product limit reached! Your tier allows ${productLimit} products. Please upgrade your subscription.`, 'error');
+      return;
+    }
 
     try {
       const productData: any = {
@@ -327,13 +345,27 @@ export function ProductManagement() {
               Add Category
             </button>
           )}
-          <button
-            onClick={() => setShowProductForm(true)}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
-          >
-            <Plus size={20} />
-            Add Product
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            <button
+              onClick={() => setShowProductForm(true)}
+              disabled={limitReached}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                limitReached
+                  ? 'bg-gray-400 cursor-not-allowed text-white'
+                  : 'bg-orange-500 hover:bg-orange-600 text-white'
+              }`}
+              title={limitReached ? `Product limit reached (${productLimit})` : 'Add a new product'}
+            >
+              <Plus size={20} />
+              Add Product
+            </button>
+            {productLimit !== -1 && (
+              <span className={`text-xs ${limitReached ? 'text-red-600 font-semibold' : 'text-gray-600'}`}>
+                {products.length} / {productLimit} products
+                {limitReached && ' - Limit reached!'}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

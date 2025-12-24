@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Package, Clock, CheckCircle, Truck, Home, XCircle, AlertCircle } from 'lucide-react';
+import { Package, Clock, CheckCircle, Truck, Home, XCircle, AlertCircle, ChevronDown, ChevronUp, CreditCard } from 'lucide-react';
 
 interface Order {
   id: string;
@@ -12,6 +12,14 @@ interface Order {
   is_self_pickup: boolean;
   created_at: string;
   payment_method: string;
+  restaurant_id: string;
+}
+
+interface BankDetails {
+  bank_name: string;
+  account_holder_name: string;
+  account_number: string;
+  bank_qr_code_url: string | null;
 }
 
 export function OrderTracking() {
@@ -20,6 +28,8 @@ export function OrderTracking() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expired, setExpired] = useState(false);
+  const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
+  const [showBankDetails, setShowBankDetails] = useState(false);
 
   useEffect(() => {
     loadOrderData();
@@ -58,6 +68,18 @@ export function OrderTracking() {
 
       if (orderData) {
         setOrder(orderData);
+
+        if (orderData.status === 'DELIVERED') {
+          const { data: settings } = await supabase
+            .from('restaurant_settings')
+            .select('bank_name, account_holder_name, account_number, bank_qr_code_url')
+            .eq('restaurant_id', orderData.restaurant_id)
+            .maybeSingle();
+
+          if (settings && settings.bank_name) {
+            setBankDetails(settings);
+          }
+        }
       }
     } catch (err) {
       setError('Failed to load order details');
@@ -220,6 +242,70 @@ export function OrderTracking() {
               <p className="font-medium text-gray-900">{order.phone_number}</p>
             </div>
           </div>
+
+          {order.status === 'DELIVERED' && bankDetails && order.payment_method === 'BANK_TRANSFER' && (
+            <div className="mt-6 border border-green-300 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setShowBankDetails(!showBankDetails)}
+                className="w-full p-4 bg-green-50 hover:bg-green-100 flex items-center justify-between transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <CreditCard size={24} className="text-green-600" />
+                  <div className="text-left">
+                    <h4 className="font-semibold text-gray-900">Payment Information</h4>
+                    <p className="text-sm text-gray-600">Click to view bank transfer details</p>
+                  </div>
+                </div>
+                {showBankDetails ? <ChevronUp size={24} className="text-gray-600" /> : <ChevronDown size={24} className="text-gray-600" />}
+              </button>
+
+              {showBankDetails && (
+                <div className="p-6 bg-white border-t space-y-4">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-yellow-800">
+                      Please complete your payment by transferring to the account below. Keep your payment receipt for reference.
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">Bank Name</p>
+                    <p className="font-semibold text-gray-900">{bankDetails.bank_name}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">Account Holder</p>
+                    <p className="font-semibold text-gray-900">{bankDetails.account_holder_name}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">Account Number / IBAN</p>
+                    <p className="font-mono font-semibold text-gray-900 text-lg">{bankDetails.account_number}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">Amount to Transfer</p>
+                    <p className="text-2xl font-bold text-green-600">AED {order.total_amount.toFixed(2)}</p>
+                  </div>
+
+                  {bankDetails.bank_qr_code_url && (
+                    <div className="pt-4 border-t">
+                      <p className="text-sm text-gray-600 mb-2">Scan QR Code to Pay</p>
+                      <div className="bg-gray-50 p-4 rounded-lg inline-block">
+                        <img
+                          src={bankDetails.bank_qr_code_url}
+                          alt="Payment QR Code"
+                          className="w-48 h-48 object-contain"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="mt-6 p-4 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-900">
