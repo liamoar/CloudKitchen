@@ -56,6 +56,7 @@ interface Invoice {
   rejection_reason: string | null;
   due_date: string;
   created_at: string;
+  tier_id: string;
   tier: {
     name: string;
   };
@@ -280,43 +281,58 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
     setMessage(null);
 
     try {
-      const invoiceType = restaurant.subscription_status === 'TRIAL'
-        ? 'TRIAL_CONVERSION'
-        : currentTier && selectedTier.id !== currentTier.id
-        ? 'UPGRADE'
-        : 'RENEWAL';
+      const existingInvoice = pendingInvoices.find(inv => inv.tier_id === selectedTier.id);
 
-      const { data: functionData, error: functionError } = await supabase.rpc(
-        'generate_invoice_number'
-      );
+      if (existingInvoice) {
+        const { error: updateError } = await supabase
+          .from('payment_invoices')
+          .update({
+            payment_receipt_url: receiptUrl,
+            status: 'SUBMITTED',
+            submission_date: new Date().toISOString(),
+          })
+          .eq('id', existingInvoice.id);
 
-      if (functionError) throw functionError;
+        if (updateError) throw updateError;
+      } else {
+        const invoiceType = restaurant.subscription_status === 'TRIAL'
+          ? 'TRIAL_CONVERSION'
+          : currentTier && selectedTier.id !== currentTier.id
+          ? 'UPGRADE'
+          : 'RENEWAL';
 
-      const invoiceNumber = functionData || `INV-${Date.now()}`;
+        const { data: functionData, error: functionError } = await supabase.rpc(
+          'generate_invoice_number'
+        );
 
-      const dueDate = new Date();
-      const billingStart = new Date();
-      const billingEnd = new Date();
-      billingEnd.setDate(billingEnd.getDate() + 30);
+        if (functionError) throw functionError;
 
-      const { error: insertError } = await supabase
-        .from('payment_invoices')
-        .insert({
-          restaurant_id: restaurant.id,
-          tier_id: selectedTier.id,
-          invoice_number: invoiceNumber,
-          invoice_type: invoiceType,
-          amount: selectedTier.monthly_price,
-          currency: selectedTier.currency,
-          status: 'SUBMITTED',
-          payment_receipt_url: receiptUrl,
-          submission_date: new Date().toISOString(),
-          due_date: dueDate.toISOString(),
-          billing_period_start: billingStart.toISOString(),
-          billing_period_end: billingEnd.toISOString(),
-        });
+        const invoiceNumber = functionData || `INV-${Date.now()}`;
 
-      if (insertError) throw insertError;
+        const dueDate = new Date();
+        const billingStart = new Date();
+        const billingEnd = new Date();
+        billingEnd.setDate(billingEnd.getDate() + 30);
+
+        const { error: insertError } = await supabase
+          .from('payment_invoices')
+          .insert({
+            restaurant_id: restaurant.id,
+            tier_id: selectedTier.id,
+            invoice_number: invoiceNumber,
+            invoice_type: invoiceType,
+            amount: selectedTier.monthly_price,
+            currency: selectedTier.currency,
+            status: 'SUBMITTED',
+            payment_receipt_url: receiptUrl,
+            submission_date: new Date().toISOString(),
+            due_date: dueDate.toISOString(),
+            billing_period_start: billingStart.toISOString(),
+            billing_period_end: billingEnd.toISOString(),
+          });
+
+        if (insertError) throw insertError;
+      }
 
       setMessage({ text: 'Payment submitted successfully! Awaiting admin approval.', type: 'success' });
       setReceiptUrl('');
@@ -377,7 +393,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
   const pendingInvoices = invoices.filter(inv => ['PENDING', 'REJECTED'].includes(inv.status));
   const trialDaysLeft = restaurant.trial_days_remaining || 0;
   const subscriptionDaysLeft = restaurant.subscription_days_remaining || 0;
-  const canChangeTier = ['ACTIVE', 'TRIAL'].includes(restaurant.subscription_status) && currentTier;
+  const canChangeTier = ['ACTIVE', 'TRIAL'].includes(restaurant.subscription_status) && currentTier && pendingInvoices.length === 0;
   const canCancel = ['ACTIVE', 'TRIAL', 'OVERDUE', 'PAUSED'].includes(restaurant.subscription_status);
   const canPause = restaurant.subscription_status === 'ACTIVE';
   const canResume = restaurant.subscription_status === 'PAUSED';
@@ -390,25 +406,62 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
         </div>
       )}
 
+      {pendingInvoices.length > 0 && (
+        <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-lg shadow-lg p-6 text-white">
+          <div className="flex items-start gap-4">
+            <div className="bg-white/20 rounded-full p-3">
+              <AlertTriangle size={32} />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-2xl font-bold mb-2">Payment Required</h3>
+              <p className="text-white/90 mb-4">
+                You have {pendingInvoices.length} pending invoice{pendingInvoices.length > 1 ? 's' : ''} that require{pendingInvoices.length === 1 ? 's' : ''} payment.
+                Please submit your payment receipt{pendingInvoices.length > 1 ? 's' : ''} to complete your subscription upgrade.
+              </p>
+              <div className="space-y-3">
+                {pendingInvoices.map((invoice) => (
+                  <div key={invoice.id} className="bg-white/10 backdrop-blur rounded-lg p-4">
+                    <div className="flex items-center justify-between flex-wrap gap-4">
+                      <div>
+                        <p className="font-semibold text-lg">{invoice.invoice_number}</p>
+                        <p className="text-sm text-white/80">
+                          {invoice.invoice_type.replace('_', ' ')} to {invoice.tier.name} Plan
+                        </p>
+                        <p className="text-xl font-bold mt-1">
+                          {getCurrencySymbol(invoice.currency)}{invoice.amount}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const tier = availableTiers.find(t => t.id === invoice.tier_id);
+                          setSelectedTier(tier || null);
+                          setShowPaymentForm(true);
+                        }}
+                        className="px-6 py-3 bg-white text-orange-600 hover:bg-orange-50 rounded-lg font-semibold shadow-lg flex items-center gap-2 transition-all"
+                      >
+                        <Upload size={20} />
+                        Submit Payment Receipt
+                      </button>
+                    </div>
+                    {invoice.status === 'REJECTED' && invoice.rejection_reason && (
+                      <div className="mt-3 bg-red-500/20 border border-red-300/30 rounded p-3">
+                        <p className="text-sm font-semibold">Rejection Reason:</p>
+                        <p className="text-sm text-white/90">{invoice.rejection_reason}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Subscription Status</h2>
           {getStatusBadge(restaurant.subscription_status)}
         </div>
-
-        {pendingInvoices.length > 0 && (
-          <div className="bg-orange-50 border-l-4 border-orange-400 p-4 mb-6">
-            <div className="flex">
-              <AlertTriangle className="text-orange-400" size={24} />
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-orange-800">Action Required</h3>
-                <div className="mt-2 text-sm text-orange-700">
-                  <p>You have {pendingInvoices.length} pending invoice{pendingInvoices.length > 1 ? 's' : ''}. Please complete payment to avoid service interruption.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {restaurant.subscription_status === 'TRIAL' && restaurant.trial_ends_at && (
@@ -462,7 +515,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          {!currentTier && (
+          {!currentTier && pendingInvoices.length === 0 && (
             <button
               onClick={() => setShowPlanSelection(!showPlanSelection)}
               className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold"
@@ -476,19 +529,6 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
               className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold"
             >
               Change Plan
-            </button>
-          )}
-          {pendingInvoices.length > 0 && (
-            <button
-              onClick={() => {
-                const invoice = pendingInvoices[0];
-                setSelectedTier(availableTiers.find(t => t.id === invoice.tier_id) || null);
-                setShowPaymentForm(true);
-              }}
-              className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold flex items-center gap-2"
-            >
-              <Upload size={20} />
-              Complete Payment
             </button>
           )}
           {canPause && (
@@ -750,7 +790,12 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
               </thead>
               <tbody className="divide-y">
                 {invoices.map((invoice) => (
-                  <tr key={invoice.id} className={invoice.status === 'PENDING' ? 'bg-orange-50' : ''}>
+                  <tr key={invoice.id} className={
+                    invoice.status === 'PENDING' ? 'bg-orange-50' :
+                    invoice.status === 'SUBMITTED' ? 'bg-blue-50' :
+                    invoice.status === 'APPROVED' ? 'bg-green-50' :
+                    invoice.status === 'REJECTED' ? 'bg-red-50' : ''
+                  }>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{invoice.invoice_number}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{invoice.invoice_type.replace('_', ' ')}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{invoice.tier.name}</td>
@@ -762,15 +807,28 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
                     </td>
                     <td className="px-4 py-3">{getInvoiceStatusBadge(invoice.status)}</td>
                     <td className="px-4 py-3 text-sm">
-                      {invoice.payment_receipt_url && (
+                      {invoice.payment_receipt_url ? (
                         <a
                           href={invoice.payment_receipt_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline"
+                          className="text-blue-600 hover:underline flex items-center gap-1"
                         >
                           View Receipt
                         </a>
+                      ) : invoice.status === 'PENDING' ? (
+                        <button
+                          onClick={() => {
+                            const tier = availableTiers.find(t => t.id === invoice.tier_id);
+                            setSelectedTier(tier || null);
+                            setShowPaymentForm(true);
+                          }}
+                          className="text-orange-600 hover:underline font-medium"
+                        >
+                          Submit Payment
+                        </button>
+                      ) : (
+                        <span className="text-gray-400 text-xs">No receipt</span>
                       )}
                       {invoice.status === 'REJECTED' && invoice.rejection_reason && (
                         <p className="text-xs text-red-600 mt-1">{invoice.rejection_reason}</p>
