@@ -378,6 +378,14 @@ export function SuperAdminDashboard() {
     }
 
     try {
+      const { data: restaurant } = await supabase
+        .from('restaurants')
+        .select('owner_id')
+        .eq('id', restaurantId)
+        .maybeSingle();
+
+      const ownerId = restaurant?.owner_id;
+
       const { data: orders } = await supabase
         .from('orders')
         .select('id')
@@ -456,6 +464,11 @@ export function SuperAdminDashboard() {
         .delete()
         .eq('restaurant_id', restaurantId);
 
+      await supabase
+        .from('payment_invoices')
+        .delete()
+        .eq('restaurant_id', restaurantId);
+
       const { data: customers } = await supabase
         .from('customers')
         .select('id')
@@ -475,29 +488,52 @@ export function SuperAdminDashboard() {
         .delete()
         .eq('restaurant_id', restaurantId);
 
-      const { data: restaurant } = await supabase
-        .from('restaurants')
-        .select('owner_id')
-        .eq('id', restaurantId)
-        .maybeSingle();
+      if (ownerId) {
+        const { data: supportTickets } = await supabase
+          .from('support_tickets')
+          .select('id')
+          .eq('restaurant_id', restaurantId);
 
-      await supabase
+        if (supportTickets && supportTickets.length > 0) {
+          const ticketIds = supportTickets.map(t => t.id);
+
+          await supabase
+            .from('support_messages')
+            .delete()
+            .in('ticket_id', ticketIds);
+        }
+
+        await supabase
+          .from('support_tickets')
+          .delete()
+          .eq('restaurant_id', restaurantId);
+      }
+
+      const { error: restaurantError } = await supabase
         .from('restaurants')
         .delete()
         .eq('id', restaurantId);
 
-      if (restaurant?.owner_id) {
-        await supabase
+      if (restaurantError) {
+        throw restaurantError;
+      }
+
+      if (ownerId) {
+        const { error: userError } = await supabase
           .from('users')
           .delete()
-          .eq('id', restaurant.owner_id);
+          .eq('id', ownerId);
+
+        if (userError) {
+          console.error('Error deleting user:', userError);
+        }
       }
 
       loadData();
       alert('Business deleted successfully');
     } catch (error) {
       console.error('Error deleting business:', error);
-      alert('Error deleting business. Please try again.');
+      alert(`Error deleting business: ${error.message || 'Please try again.'}`);
     }
   };
 
