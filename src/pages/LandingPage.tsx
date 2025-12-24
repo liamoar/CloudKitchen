@@ -4,7 +4,7 @@ import {
   Zap, Package, TrendingUp, Shield, Globe, CheckCircle,
   Truck, BarChart, Clock, Users, CreditCard, ShoppingCart,
   MapPin, Bell, Smartphone, Target, ArrowRight, Star,
-  Layout, Settings, Eye, MessageSquare
+  Layout, Settings, Eye, EyeOff, MessageSquare
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { validateSubdomain, buildSubdomainUrl } from '../lib/utils';
@@ -25,6 +25,7 @@ export function LandingPage() {
   const [error, setError] = useState('');
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [selectedCountry, setSelectedCountry] = useState('AE');
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     businessName: '',
@@ -462,15 +463,24 @@ export function LandingPage() {
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Password
                 </label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Min. 6 characters"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12"
+                    placeholder="Min. 6 characters"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
 
               <button
@@ -506,20 +516,12 @@ export function LandingPage() {
               </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">hejo.app</span>
             </div>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/business-login')}
-                className="text-sm text-gray-600 hover:text-gray-900 font-medium hidden sm:block"
-              >
-                Business Login
-              </button>
-              <button
-                onClick={() => setShowSignup(true)}
-                className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white px-6 py-2 rounded-lg font-semibold text-sm transition-all shadow-md"
-              >
-                Get Started Free
-              </button>
-            </div>
+            <button
+              onClick={() => setShowSignup(true)}
+              className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white px-6 py-2 rounded-lg font-semibold text-sm transition-all shadow-md"
+            >
+              Get Started Free
+            </button>
           </div>
         </div>
       </nav>

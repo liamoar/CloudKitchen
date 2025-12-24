@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../lib/utils';
-import { Building2, DollarSign, Clock, CheckCircle, XCircle, Settings, LogOut, Trash2, Ban, Package, ShoppingCart } from 'lucide-react';
+import { Building2, DollarSign, Clock, CheckCircle, XCircle, Settings, LogOut, Trash2, Ban, Package, ShoppingCart, Edit2, Eye, EyeOff } from 'lucide-react';
 import PaymentApproval from '../components/superadmin/PaymentApproval';
 
 interface Restaurant {
@@ -84,6 +84,14 @@ export function SuperAdminDashboard() {
     totalOrdersThisMonth: 0
   });
   const [loading, setLoading] = useState(true);
+  const [editingBusiness, setEditingBusiness] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    newPassword: ''
+  });
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -252,6 +260,52 @@ export function SuperAdminDashboard() {
     }
   };
 
+  const openEditBusiness = async (restaurantId: string) => {
+    const restaurant = restaurants.find(r => r.id === restaurantId);
+    if (!restaurant) return;
+
+    setEditFormData({
+      name: restaurant.owner.name,
+      email: restaurant.owner.email,
+      phone: restaurant.owner.phone,
+      newPassword: ''
+    });
+    setEditingBusiness(restaurantId);
+  };
+
+  const saveBusinessEdit = async () => {
+    if (!editingBusiness) return;
+
+    const restaurant = restaurants.find(r => r.id === editingBusiness);
+    if (!restaurant) return;
+
+    try {
+      const updates: any = {
+        name: editFormData.name,
+        email: editFormData.email,
+        phone: editFormData.phone
+      };
+
+      if (editFormData.newPassword && editFormData.newPassword.length >= 6) {
+        updates.password = editFormData.newPassword;
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('phone', restaurant.owner.phone);
+
+      if (error) throw error;
+
+      alert('Business details updated successfully');
+      setEditingBusiness(null);
+      loadData();
+    } catch (error) {
+      console.error('Error updating business:', error);
+      alert('Error updating business details');
+    }
+  };
+
   const deleteBusiness = async (restaurantId: string) => {
     if (!confirm('Are you sure you want to DELETE this business? This will permanently remove all data including orders, products, and settings. This action cannot be undone!')) {
       return;
@@ -264,8 +318,46 @@ export function SuperAdminDashboard() {
     }
 
     try {
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('restaurant_id', restaurantId);
+
+      if (orders && orders.length > 0) {
+        const orderIds = orders.map(o => o.id);
+
+        await supabase
+          .from('order_items')
+          .delete()
+          .in('order_id', orderIds);
+
+        await supabase
+          .from('order_tracking_tokens')
+          .delete()
+          .in('order_id', orderIds);
+      }
+
       await supabase
         .from('orders')
+        .delete()
+        .eq('restaurant_id', restaurantId);
+
+      const { data: bundles } = await supabase
+        .from('bundles')
+        .select('id')
+        .eq('restaurant_id', restaurantId);
+
+      if (bundles && bundles.length > 0) {
+        const bundleIds = bundles.map(b => b.id);
+
+        await supabase
+          .from('bundle_products')
+          .delete()
+          .in('bundle_id', bundleIds);
+      }
+
+      await supabase
+        .from('bundles')
         .delete()
         .eq('restaurant_id', restaurantId);
 
@@ -276,11 +368,6 @@ export function SuperAdminDashboard() {
 
       await supabase
         .from('product_categories')
-        .delete()
-        .eq('restaurant_id', restaurantId);
-
-      await supabase
-        .from('bundles')
         .delete()
         .eq('restaurant_id', restaurantId);
 
@@ -309,10 +396,42 @@ export function SuperAdminDashboard() {
         .delete()
         .eq('restaurant_id', restaurantId);
 
+      const { data: customers } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('restaurant_id', restaurantId);
+
+      if (customers && customers.length > 0) {
+        const customerIds = customers.map(c => c.id);
+
+        await supabase
+          .from('customer_addresses')
+          .delete()
+          .in('customer_id', customerIds);
+      }
+
+      await supabase
+        .from('customers')
+        .delete()
+        .eq('restaurant_id', restaurantId);
+
+      const { data: restaurant } = await supabase
+        .from('restaurants')
+        .select('owner_id')
+        .eq('id', restaurantId)
+        .maybeSingle();
+
       await supabase
         .from('restaurants')
         .delete()
         .eq('id', restaurantId);
+
+      if (restaurant?.owner_id) {
+        await supabase
+          .from('users')
+          .delete()
+          .eq('id', restaurant.owner_id);
+      }
 
       loadData();
       alert('Business deleted successfully');
@@ -517,6 +636,13 @@ export function SuperAdminDashboard() {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => openEditBusiness(restaurant.id)}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Edit Business Details"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
                                 <button
                                   onClick={() => deactivateBusiness(restaurant.id)}
                                   className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
@@ -882,6 +1008,84 @@ export function SuperAdminDashboard() {
           </>
         )}
       </div>
+
+      {editingBusiness && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Edit Business Details</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Owner Name</label>
+                <input
+                  type="text"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={editFormData.phone}
+                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  New Password (leave blank to keep current)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showEditPassword ? 'text' : 'password'}
+                    value={editFormData.newPassword}
+                    onChange={(e) => setEditFormData({ ...editFormData, newPassword: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12"
+                    placeholder="Min. 6 characters"
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showEditPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={saveBusinessEdit}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium transition-colors"
+              >
+                Save Changes
+              </button>
+              <button
+                onClick={() => setEditingBusiness(null)}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
