@@ -27,27 +27,34 @@ Deno.serve(async (req: Request) => {
       errors: [] as string[],
     };
 
-    // 1. Create invoices for trials ending in 3 days
+    const now = new Date();
+
+    // 1. Create invoices for trials ending soon (3 days before)
     const threeDaysFromNow = new Date();
     threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
     threeDaysFromNow.setHours(23, 59, 59, 999);
 
     const { data: trialsEnding } = await supabase
       .from('restaurants')
-      .select('id, name, current_tier_id, trial_ends_at')
+      .select(`
+        id,
+        name,
+        current_tier_id,
+        trial_ends_at,
+        subscription_tiers!inner(
+          id,
+          monthly_price,
+          currency,
+          plan_days
+        )
+      `)
       .eq('subscription_status', 'TRIAL')
       .not('current_tier_id', 'is', null)
       .lte('trial_ends_at', threeDaysFromNow.toISOString());
 
     if (trialsEnding) {
       for (const restaurant of trialsEnding) {
-        const { data: tier } = await supabase
-          .from('subscription_tiers')
-          .select('monthly_price, currency')
-          .eq('id', restaurant.current_tier_id)
-          .maybeSingle();
-
-        if (!tier) continue;
+        const tier = (restaurant.subscription_tiers as any);
 
         const { data: existingInvoice } = await supabase
           .from('payment_invoices')
@@ -63,7 +70,7 @@ Deno.serve(async (req: Request) => {
 
         const billingStart = new Date(restaurant.trial_ends_at);
         const billingEnd = new Date(billingStart);
-        billingEnd.setDate(billingEnd.getDate() + 30);
+        billingEnd.setDate(billingEnd.getDate() + tier.plan_days);
 
         const { error } = await supabase
           .from('payment_invoices')
@@ -88,27 +95,32 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 2. Create renewal invoices for subscriptions ending in 5 days
+    // 2. Create renewal invoices for subscriptions ending soon (5 days before)
     const fiveDaysFromNow = new Date();
     fiveDaysFromNow.setDate(fiveDaysFromNow.getDate() + 5);
     fiveDaysFromNow.setHours(23, 59, 59, 999);
 
     const { data: subscriptionsRenewing } = await supabase
       .from('restaurants')
-      .select('id, name, current_tier_id, subscription_ends_at')
+      .select(`
+        id,
+        name,
+        current_tier_id,
+        subscription_ends_at,
+        subscription_tiers!inner(
+          id,
+          monthly_price,
+          currency,
+          plan_days
+        )
+      `)
       .eq('subscription_status', 'ACTIVE')
       .not('current_tier_id', 'is', null)
       .lte('subscription_ends_at', fiveDaysFromNow.toISOString());
 
     if (subscriptionsRenewing) {
       for (const restaurant of subscriptionsRenewing) {
-        const { data: tier } = await supabase
-          .from('subscription_tiers')
-          .select('monthly_price, currency')
-          .eq('id', restaurant.current_tier_id)
-          .maybeSingle();
-
-        if (!tier) continue;
+        const tier = (restaurant.subscription_tiers as any);
 
         const { data: existingInvoice } = await supabase
           .from('payment_invoices')
@@ -125,7 +137,7 @@ Deno.serve(async (req: Request) => {
 
         const billingStart = new Date(restaurant.subscription_ends_at);
         const billingEnd = new Date(billingStart);
-        billingEnd.setDate(billingEnd.getDate() + 30);
+        billingEnd.setDate(billingEnd.getDate() + tier.plan_days);
 
         const { error } = await supabase
           .from('payment_invoices')
@@ -151,25 +163,22 @@ Deno.serve(async (req: Request) => {
     }
 
     // 3. Mark expired trials as OVERDUE
-    const now = new Date();
     const { data: expiredTrials } = await supabase
       .from('restaurants')
-      .select('id, name, trial_ends_at, current_tier_id')
+      .select(`
+        id,
+        name,
+        trial_ends_at,
+        current_tier_id,
+        subscription_tiers!inner(
+          overdue_grace_days
+        )
+      `)
       .eq('subscription_status', 'TRIAL')
       .lt('trial_ends_at', now.toISOString());
 
     if (expiredTrials) {
       for (const restaurant of expiredTrials) {
-        const { data: tier } = await supabase
-          .from('subscription_tiers')
-          .select('overdue_grace_days')
-          .eq('id', restaurant.current_tier_id)
-          .maybeSingle();
-
-        const graceDays = tier?.overdue_grace_days || 2;
-        const suspendDate = new Date(restaurant.trial_ends_at);
-        suspendDate.setDate(suspendDate.getDate() + graceDays);
-
         const { error } = await supabase
           .from('restaurants')
           .update({
@@ -213,30 +222,41 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 5. Suspend restaurants past grace period
+    // 5. Suspend OVERDUE restaurants past grace period
     const { data: overdueRestaurants } = await supabase
       .from('restaurants')
-      .select('id, name, overdue_since, current_tier_id')
+      .select(`
+        id,
+        name,
+        overdue_since,
+        current_tier_id,
+        trial_ends_at,
+        subscription_tiers!inner(
+          overdue_grace_days,
+          name
+        )
+      `)
       .eq('subscription_status', 'OVERDUE')
       .not('overdue_since', 'is', null);
 
     if (overdueRestaurants) {
       for (const restaurant of overdueRestaurants) {
-        const { data: tier } = await supabase
-          .from('subscription_tiers')
-          .select('overdue_grace_days')
-          .eq('id', restaurant.current_tier_id)
-          .maybeSingle();
-
-        const graceDays = tier?.overdue_grace_days || 2;
+        const tier = (restaurant.subscription_tiers as any);
+        const graceDays = tier.overdue_grace_days || 2;
         const suspendDate = new Date(restaurant.overdue_since);
         suspendDate.setDate(suspendDate.getDate() + graceDays);
 
         if (now >= suspendDate) {
+          // Check if this was a trial or paid subscription
+          const wasTrial = tier.name === 'Trial' || restaurant.trial_ends_at;
+
           const { error } = await supabase
             .from('restaurants')
             .update({
               subscription_status: 'SUSPENDED',
+              // For trial: full deactivation
+              // For subscription: business owner blocked but storefront stays active
+              status: wasTrial ? 'INACTIVE' : 'ACTIVE'
             })
             .eq('id', restaurant.id);
 

@@ -2,7 +2,60 @@
 
 ## Overview
 
-The subscription system has been completely rebuilt to provide Stripe-like automation with manual payment verification. This document explains the complete lifecycle and automation features.
+The subscription system has been completely rebuilt to provide Stripe-like automation with manual payment verification using tier-based configurations. Each country has its own tiers (Trial, Basic, Premium) with configurable plan days, trial periods, and grace periods.
+
+---
+
+## Tier Structure and Plan Days
+
+### Subscription Tiers Per Country
+Each country has three tiers:
+
+1. **Trial Tier** (Free)
+   - `plan_days`: Configurable (e.g., 5, 15, 30 days)
+   - `monthly_price`: 0
+   - Limited features (10 products, 50 orders/month, 100MB storage)
+   - Assigned automatically to new restaurants
+   - When expired + grace period passes → Full account deactivation (storefront unavailable)
+
+2. **Basic Tier** (Paid)
+   - `plan_days`: 30 days (configurable per country)
+   - `monthly_price`: Country-specific pricing
+   - Standard features
+   - When expired + grace period passes → Business owner locked to subscription page only, storefront remains active
+
+3. **Premium Tier** (Paid)
+   - `plan_days`: 30 days (configurable per country)
+   - `monthly_price`: Higher than Basic
+   - Enhanced features (unlimited products/orders)
+   - Same suspension behavior as Basic
+
+### Key Configuration Fields
+
+**Per Tier:**
+- `plan_days`: How many days the tier is valid for per payment
+- `trial_days`: Used for Trial tier to define trial length
+- `overdue_grace_days`: Days after expiration before suspension (e.g., 2 days)
+- `monthly_price`: Cost in local currency
+- `product_limit`: Max products (-1 = unlimited)
+- `order_limit_per_month`: Max orders (-1 = unlimited)
+- `storage_limit_mb`: Storage space in MB
+
+---
+
+## Access Restrictions
+
+### Trial Expired (SUSPENDED)
+- **Business Owner**: Full account deactivation, cannot login
+- **Storefront**: Redirects to main landing page (hejo.app)
+- **Customers**: Cannot view or purchase
+
+### Subscription Expired (SUSPENDED)
+- **Business Owner**: Locked to subscription page only, all other pages blocked
+- **Storefront**: Remains active, customers can still browse and purchase
+- **Customers**: Normal experience, can complete orders
+
+This ensures businesses don't lose revenue during temporary payment issues while encouraging prompt payment.
 
 ---
 
@@ -421,6 +474,32 @@ WHERE id = 'YOUR-TEST-RESTAURANT-ID';
 - SUSPENDED restaurants should have access blocked at application level
 - CANCELLED restaurants should not be able to login
 - PAUSED restaurants should have read-only access
+
+---
+
+## What Changed from Previous Version
+
+### 1. Trial is Now a Tier
+**Before**: Trial was just a status with hardcoded 15 days
+**Now**: Trial is a full subscription tier with configurable `plan_days` per country
+
+### 2. Tier-Specific Plan Days
+**Before**: All subscriptions were hardcoded to 30 days
+**Now**: Each tier has its own `plan_days` field (Trial: 5-30 days, Basic/Premium: 30 days)
+
+### 3. Dynamic Configuration
+**Before**: Trial days and grace periods were hardcoded in the automation function
+**Now**: All values read from `subscription_tiers` table per country
+
+### 4. Different Suspension Behaviors
+**Before**: All suspended accounts treated the same
+**Now**:
+- Trial suspended → Full deactivation (storefront offline)
+- Subscription suspended → Business owner blocked, storefront stays online
+
+### 5. Automatic Tier Assignment
+**Before**: Manual tier assignment with fallback logic
+**Now**: New restaurants automatically get Trial tier for their country with correct `plan_days`
 
 ---
 
