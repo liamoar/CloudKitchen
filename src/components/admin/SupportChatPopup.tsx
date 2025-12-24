@@ -28,7 +28,7 @@ export function SupportChatPopup() {
   useEffect(() => {
     if (restaurantId) {
       loadMessages();
-      subscribeToMessages();
+      return subscribeToMessages();
     }
   }, [restaurantId]);
 
@@ -44,21 +44,27 @@ export function SupportChatPopup() {
 
   const loadRestaurantId = async () => {
     if (!user?.id) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('restaurants')
       .select('id')
       .eq('owner_id', user.id)
       .maybeSingle();
+    if (error) console.error('Error loading restaurant:', error);
     if (data) setRestaurantId(data.id);
   };
 
   const loadMessages = async () => {
     if (!restaurantId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('support_messages')
       .select('*')
       .eq('restaurant_id', restaurantId)
       .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error loading messages:', error);
+      return;
+    }
 
     if (data) {
       setMessages(data);
@@ -116,7 +122,7 @@ export function SupportChatPopup() {
 
     setSending(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from('support_messages')
         .insert({
           restaurant_id: restaurantId,
@@ -125,7 +131,14 @@ export function SupportChatPopup() {
           message: newMessage.trim(),
         });
 
+      if (error) {
+        console.error('Error sending message:', error);
+        alert('Failed to send message: ' + error.message);
+        return;
+      }
+
       setNewMessage('');
+      await loadMessages();
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {

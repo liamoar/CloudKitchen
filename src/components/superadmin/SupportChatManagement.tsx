@@ -37,8 +37,8 @@ export function SupportChatManagement() {
   useEffect(() => {
     if (selectedRestaurantId) {
       loadMessages();
-      subscribeToMessages();
       markMessagesAsRead();
+      return subscribeToMessages();
     }
   }, [selectedRestaurantId]);
 
@@ -76,11 +76,16 @@ export function SupportChatManagement() {
   const loadMessages = async () => {
     if (!selectedRestaurantId) return;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('support_messages')
       .select('*')
       .eq('restaurant_id', selectedRestaurantId)
       .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error loading messages:', error);
+      return;
+    }
 
     if (data) {
       setMessages(data);
@@ -135,7 +140,7 @@ export function SupportChatManagement() {
 
     setSending(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from('support_messages')
         .insert({
           restaurant_id: selectedRestaurantId,
@@ -144,7 +149,14 @@ export function SupportChatManagement() {
           message: newMessage.trim(),
         });
 
+      if (error) {
+        console.error('Error sending message:', error);
+        alert('Failed to send message: ' + error.message);
+        return;
+      }
+
       setNewMessage('');
+      await loadMessages();
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {
