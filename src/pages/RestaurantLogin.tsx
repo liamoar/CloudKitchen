@@ -49,17 +49,17 @@ export function RestaurantLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="flex items-center justify-center mb-6">
-            <Store size={48} className="text-orange-600" />
+            <Store size={48} className="text-blue-600" />
           </div>
           <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
-            {businessName ? `${businessName}` : 'Restaurant Admin Login'}
+            {businessName ? `${businessName}` : 'Business Admin Login'}
           </h2>
           <p className="text-center text-gray-600 mb-6">
-            {businessName ? 'Sign in to manage your dashboard' : 'Sign in to manage your restaurant'}
+            {businessName ? 'Sign in to manage your dashboard' : 'Sign in to manage your business'}
           </p>
 
           {error && (
@@ -78,8 +78,8 @@ export function RestaurantLogin() {
                 required
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder="+1234567891"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Your registered phone number"
               />
             </div>
 
@@ -92,24 +92,18 @@ export function RestaurantLogin() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg font-semibold transition-colors disabled:bg-gray-400"
+              className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white py-3 rounded-lg font-semibold transition-colors disabled:bg-gray-400"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
-
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-600 font-semibold mb-2">Demo Restaurant Credentials:</p>
-            <p className="text-xs text-gray-600">Phone: +1234567891</p>
-            <p className="text-xs text-gray-600">Password: owner123</p>
-          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X, CreditCard, Users, Store, Phone, Mail, Clock } from 'lucide-react';
+import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X, CreditCard, Users, Store, Phone, Mail, Clock, ExternalLink, MapPin, UserCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -9,13 +9,16 @@ import { OrderManagement } from '../components/admin/OrderManagement';
 import { SalesAnalytics } from '../components/admin/SalesAnalytics';
 import { SubscriptionStatus } from '../components/admin/SubscriptionStatus';
 import { RiderManagement } from '../components/admin/RiderManagement';
+import { CustomerManagement } from '../components/admin/CustomerManagement';
 
-type Tab = 'settings' | 'products' | 'orders' | 'sales' | 'subscription' | 'riders';
+type Tab = 'settings' | 'products' | 'orders' | 'sales' | 'subscription' | 'riders' | 'customers';
 
 interface RestaurantInfo {
   name: string;
   phone: string;
   email: string;
+  address: string;
+  subdomain: string;
   is_open: boolean;
 }
 
@@ -35,29 +38,25 @@ export function RestroAdminDashboard() {
 
     const { data: restaurant } = await supabase
       .from('restaurants')
-      .select('id')
+      .select('id, subdomain, is_open')
       .eq('owner_id', user.id)
       .maybeSingle();
 
     if (restaurant) {
       const { data: settings } = await supabase
         .from('restaurant_settings')
-        .select('name, phone, email')
+        .select('name, phone, email, address')
         .eq('restaurant_id', restaurant.id)
         .maybeSingle();
 
-      const { data: restaurantData } = await supabase
-        .from('restaurants')
-        .select('is_open')
-        .eq('id', restaurant.id)
-        .maybeSingle();
-
-      if (settings && restaurantData) {
+      if (settings) {
         setRestaurantInfo({
           name: settings.name || 'My Restaurant',
           phone: settings.phone || '',
           email: settings.email || '',
-          is_open: restaurantData.is_open,
+          address: settings.address || '',
+          subdomain: restaurant.subdomain || '',
+          is_open: restaurant.is_open,
         });
       }
     }
@@ -71,6 +70,7 @@ export function RestroAdminDashboard() {
   const tabs = [
     { id: 'orders' as Tab, label: 'Orders', icon: Receipt },
     { id: 'products' as Tab, label: 'Products', icon: Package },
+    { id: 'customers' as Tab, label: 'Customers', icon: UserCheck },
     { id: 'riders' as Tab, label: 'Riders', icon: Users },
     { id: 'sales' as Tab, label: 'Sales', icon: BarChart3 },
     { id: 'subscription' as Tab, label: 'Subscription', icon: CreditCard },
@@ -94,10 +94,10 @@ export function RestroAdminDashboard() {
                         {restaurantInfo.phone}
                       </span>
                     )}
-                    {restaurantInfo.email && (
+                    {restaurantInfo.address && (
                       <span className="flex items-center gap-1">
-                        <Mail size={14} />
-                        {restaurantInfo.email}
+                        <MapPin size={14} />
+                        {restaurantInfo.address}
                       </span>
                     )}
                     <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -110,13 +110,26 @@ export function RestroAdminDashboard() {
                 )}
               </div>
             </div>
-            <button
-              onClick={handleSignOut}
-              className="hidden md:flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <LogOut size={20} />
-              Sign Out
-            </button>
+            <div className="hidden md:flex items-center gap-2">
+              {restaurantInfo?.subdomain && (
+                <a
+                  href={`https://${restaurantInfo.subdomain}.hejo.app`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                >
+                  <ExternalLink size={20} />
+                  View Store
+                </a>
+              )}
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <LogOut size={20} />
+                Sign Out
+              </button>
+            </div>
             <button
               onClick={() => setShowMobileMenu(!showMobileMenu)}
               className="md:hidden p-2 hover:bg-gray-100 rounded-lg"
@@ -158,6 +171,7 @@ export function RestroAdminDashboard() {
         {activeTab === 'settings' && <RestaurantSettings />}
         {activeTab === 'products' && <ProductManagement />}
         {activeTab === 'orders' && <OrderManagement />}
+        {activeTab === 'customers' && <CustomerManagement />}
         {activeTab === 'riders' && <RiderManagement />}
         {activeTab === 'sales' && <SalesAnalytics />}
         {activeTab === 'subscription' && <SubscriptionStatus />}
