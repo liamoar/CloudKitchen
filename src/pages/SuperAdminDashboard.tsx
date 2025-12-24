@@ -6,7 +6,6 @@ import { formatCurrency } from '../lib/utils';
 import { Building2, DollarSign, Clock, CheckCircle, XCircle, LogOut, Trash2, Ban, Package, ShoppingCart, Edit2, Eye, EyeOff, Globe, MessageCircle } from 'lucide-react';
 import PaymentApproval from '../components/superadmin/PaymentApproval';
 import CountryTierManagement from '../components/superadmin/CountryTierManagement';
-import CountryAnalytics from '../components/superadmin/CountryAnalytics';
 import { SupportChatManagement } from '../components/superadmin/SupportChatManagement';
 
 interface Restaurant {
@@ -53,6 +52,14 @@ interface SalesStats {
   newRestaurantsThisMonth: number;
   totalProducts: number;
   totalOrdersThisMonth: number;
+  basicTierBusinesses: number;
+  premiumTierBusinesses: number;
+}
+
+interface CountryOption {
+  country: string;
+  country_name: string;
+  currency: string;
 }
 
 export function SuperAdminDashboard() {
@@ -69,7 +76,9 @@ export function SuperAdminDashboard() {
     newRestaurantsToday: 0,
     newRestaurantsThisMonth: 0,
     totalProducts: 0,
-    totalOrdersThisMonth: 0
+    totalOrdersThisMonth: 0,
+    basicTierBusinesses: 0,
+    premiumTierBusinesses: 0
   });
   const [loading, setLoading] = useState(true);
   const [editingBusiness, setEditingBusiness] = useState<string | null>(null);
@@ -80,10 +89,34 @@ export function SuperAdminDashboard() {
     newPassword: ''
   });
   const [showEditPassword, setShowEditPassword] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<string>('ALL');
+  const [countries, setCountries] = useState<CountryOption[]>([]);
 
   useEffect(() => {
     loadData();
-  }, [activeTab]);
+  }, [activeTab, selectedCountry]);
+
+  useEffect(() => {
+    loadCountries();
+  }, []);
+
+  const loadCountries = async () => {
+    try {
+      const { data: tiers } = await supabase
+        .from('subscription_tiers')
+        .select('country, country_name, currency')
+        .order('country_name');
+
+      if (tiers) {
+        const uniqueCountries = Array.from(
+          new Map(tiers.map(t => [t.country, t])).values()
+        );
+        setCountries(uniqueCountries);
+      }
+    } catch (error) {
+      console.error('Error loading countries:', error);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -155,58 +188,111 @@ export function SuperAdminDashboard() {
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        const [paymentsData, restaurantsData, productsData, ordersData, configsData] = await Promise.all([
-          supabase.from('payment_receipts').select('amount, status, submitted_at, currency'),
-          supabase.from('restaurants').select('status, created_at, currency'),
-          supabase.from('products').select('id'),
-          supabase.from('orders').select('id, created_at, status').gte('created_at', startOfMonth.toISOString()),
-          supabase.from('subscription_configs').select('monthly_price, currency')
-        ]);
+        const { data: tiers } = await supabase
+          .from('subscription_tiers')
+          .select('*');
 
-        if (paymentsData.data && restaurantsData.data) {
-          const approvedPayments = paymentsData.data.filter(p => p.status === 'APPROVED');
-          const totalRenewals = approvedPayments.length;
+        let restaurantsQuery = supabase
+          .from('restaurants')
+          .select('id, status, created_at, country, current_tier_id');
 
-          const platformRevenueByCurrency: { [key: string]: number } = {};
-          approvedPayments.forEach(p => {
-            const curr = p.currency || 'USD';
-            platformRevenueByCurrency[curr] = (platformRevenueByCurrency[curr] || 0) + p.amount;
-          });
+        if (selectedCountry !== 'ALL') {
+          restaurantsQuery = restaurantsQuery.eq('country', selectedCountry);
+        }
 
-          const activeRestaurants = restaurantsData.data.filter(r => r.status === 'ACTIVE').length;
-          const trialRestaurants = restaurantsData.data.filter(r => r.status === 'TRIAL').length;
+        const { data: restaurantsData } = await restaurantsQuery;
 
-          const newRestaurantsToday = restaurantsData.data.filter(
+        let invoicesQuery = supabase
+          .from('payment_invoices')
+          .select('*, restaurant:restaurants!inner(country)')
+          .eq('status', 'APPROVED');
+
+        if (selectedCountry !== 'ALL') {
+          invoicesQuery = invoicesQuery.eq('restaurant.country', selectedCountry);
+        }
+
+        const { data: invoicesData } = await invoicesQuery;
+
+        if (restaurantsData && tiers) {
+          const tierMap = new Map(tiers.map(t => [t.id, t]));
+
+          let currency = 'USD';
+          if (selectedCountry !== 'ALL') {
+            const countryTier = tiers.find(t => t.country === selectedCountry);
+            currency = countryTier?.currency || 'USD';
+          }
+
+          let totalRevenue = 0;
+          let totalRenewals = 0;
+
+          if (invoicesData) {
+            invoicesData.forEach(invoice => {
+              totalRevenue += Number(invoice.amount);
+              if (invoice.invoice_type === 'RENEWAL') {
+                totalRenewals++;
+              }
+            });
+          }
+
+          const activeRestaurants = restaurantsData.filter(r => r.status === 'ACTIVE').length;
+          const trialRestaurants = restaurantsData.filter(r => r.status === 'TRIAL').length;
+
+          const newRestaurantsToday = restaurantsData.filter(
             r => new Date(r.created_at) >= startOfToday
           ).length;
 
-          const newRestaurantsThisMonth = restaurantsData.data.filter(
+          const newRestaurantsThisMonth = restaurantsData.filter(
             r => new Date(r.created_at) >= startOfMonth
           ).length;
 
-          const monthlyRevenueByCurrency: { [key: string]: number } = {};
-          const activeRestaurantsData = restaurantsData.data.filter(r => r.status === 'ACTIVE');
+          let monthlyRecurringRevenue = 0;
+          let basicTierBusinesses = 0;
+          let premiumTierBusinesses = 0;
 
-          configsData.data?.forEach(config => {
-            const restaurantCount = activeRestaurantsData.filter(r => r.currency === config.currency).length;
-            if (restaurantCount > 0) {
-              monthlyRevenueByCurrency[config.currency] = restaurantCount * config.monthly_price;
+          restaurantsData.forEach(restaurant => {
+            if (restaurant.status === 'ACTIVE' && restaurant.current_tier_id) {
+              const tier = tierMap.get(restaurant.current_tier_id);
+              if (tier) {
+                monthlyRecurringRevenue += Number(tier.monthly_price);
+
+                if (tier.name.toLowerCase().includes('basic')) {
+                  basicTierBusinesses++;
+                } else if (tier.name.toLowerCase().includes('premium')) {
+                  premiumTierBusinesses++;
+                }
+              }
             }
           });
+
+          const restaurantIds = restaurantsData.map(r => r.id);
+
+          const [productsData, ordersData] = await Promise.all([
+            supabase
+              .from('products')
+              .select('id')
+              .in('restaurant_id', restaurantIds.length > 0 ? restaurantIds : ['']),
+            supabase
+              .from('orders')
+              .select('id, status')
+              .in('restaurant_id', restaurantIds.length > 0 ? restaurantIds : [''])
+              .gte('created_at', startOfMonth.toISOString())
+          ]);
 
           const totalProducts = productsData.data?.length || 0;
           const totalOrdersThisMonth = ordersData.data?.filter(o => o.status !== 'CANCELLED').length || 0;
 
           setSalesStats({
-            platformRevenueByCurrency: Object.entries(platformRevenueByCurrency).map(([currency, amount]) => ({ currency, amount })),
-            monthlyRevenueByCurrency: Object.entries(monthlyRevenueByCurrency).map(([currency, amount]) => ({ currency, amount })),
+            platformRevenueByCurrency: [{ currency, amount: totalRevenue }],
+            monthlyRevenueByCurrency: [{ currency, amount: monthlyRecurringRevenue }],
             totalRenewals,
             activeRestaurants,
             trialRestaurants,
             newRestaurantsToday,
             newRestaurantsThisMonth,
             totalProducts,
-            totalOrdersThisMonth
+            totalOrdersThisMonth,
+            basicTierBusinesses,
+            premiumTierBusinesses
           });
         }
       }
@@ -642,7 +728,24 @@ export function SuperAdminDashboard() {
 
             {activeTab === 'sales' && (
               <div className="space-y-6">
-                <h2 className="text-xl font-bold text-gray-900">Platform Revenue & Metrics</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-gray-900">Platform Revenue & Metrics</h2>
+                  <div className="flex items-center gap-3">
+                    <Globe className="text-orange-500" size={24} />
+                    <select
+                      value={selectedCountry}
+                      onChange={(e) => setSelectedCountry(e.target.value)}
+                      className="px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-medium bg-white"
+                    >
+                      <option value="ALL">All Countries</option>
+                      {countries.map(country => (
+                        <option key={country.country} value={country.country}>
+                          {country.country_name} ({country.country})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div className="bg-white rounded-lg shadow p-6">
@@ -704,7 +807,7 @@ export function SuperAdminDashboard() {
 
                   <div className="bg-white rounded-lg shadow p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-medium text-gray-600">Active Restaurants</h3>
+                      <h3 className="text-sm font-medium text-gray-600">Active Businesses</h3>
                       <div className="p-2 bg-green-100 rounded-lg">
                         <Building2 size={20} className="text-green-600" />
                       </div>
@@ -717,88 +820,48 @@ export function SuperAdminDashboard() {
                 <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div className="bg-white rounded-lg shadow p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-medium text-gray-600">Trial Restaurants</h3>
+                      <h3 className="text-sm font-medium text-gray-600">Businesses in Trial</h3>
                       <div className="p-2 bg-yellow-100 rounded-lg">
                         <Clock size={20} className="text-yellow-600" />
                       </div>
                     </div>
                     <p className="text-3xl font-bold text-gray-900">{salesStats.trialRestaurants}</p>
-                    <p className="text-sm text-gray-500 mt-1">On trial period</p>
+                    <p className="text-sm text-gray-500 mt-1">Trial period</p>
                   </div>
 
                   <div className="bg-white rounded-lg shadow p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-medium text-gray-600">New Today</h3>
-                      <div className="p-2 bg-orange-100 rounded-lg">
-                        <Building2 size={20} className="text-orange-600" />
+                      <h3 className="text-sm font-medium text-gray-600">Basic Tier Businesses</h3>
+                      <div className="p-2 bg-teal-100 rounded-lg">
+                        <Building2 size={20} className="text-teal-600" />
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900">{salesStats.newRestaurantsToday}</p>
-                    <p className="text-sm text-gray-500 mt-1">Restaurants enrolled today</p>
+                    <p className="text-3xl font-bold text-gray-900">{salesStats.basicTierBusinesses}</p>
+                    <p className="text-sm text-gray-500 mt-1">Basic plan</p>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-medium text-gray-600">Premium Tier Businesses</h3>
+                      <div className="p-2 bg-indigo-100 rounded-lg">
+                        <Building2 size={20} className="text-indigo-600" />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900">{salesStats.premiumTierBusinesses}</p>
+                    <p className="text-sm text-gray-500 mt-1">Premium plan</p>
                   </div>
 
                   <div className="bg-white rounded-lg shadow p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-medium text-gray-600">New This Month</h3>
-                      <div className="p-2 bg-cyan-100 rounded-lg">
-                        <Building2 size={20} className="text-cyan-600" />
+                      <div className="p-2 bg-pink-100 rounded-lg">
+                        <Building2 size={20} className="text-pink-600" />
                       </div>
                     </div>
                     <p className="text-3xl font-bold text-gray-900">{salesStats.newRestaurantsThisMonth}</p>
-                    <p className="text-sm text-gray-500 mt-1">Restaurants this month</p>
-                  </div>
-
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-medium text-gray-600">Conversion Rate</h3>
-                      <div className="p-2 bg-indigo-100 rounded-lg">
-                        <CheckCircle size={20} className="text-indigo-600" />
-                      </div>
-                    </div>
-                    <p className="text-3xl font-bold text-gray-900">
-                      {salesStats.trialRestaurants + salesStats.activeRestaurants > 0
-                        ? Math.round((salesStats.activeRestaurants / (salesStats.trialRestaurants + salesStats.activeRestaurants)) * 100)
-                        : 0}%
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">Trial to paid conversion</p>
+                    <p className="text-sm text-gray-500 mt-1">New businesses</p>
                   </div>
                 </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Platform Activity Overview</h3>
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600 mb-1">Total Products Across Platform</p>
-                      <p className="text-2xl font-bold text-gray-900">
-                        {salesStats.totalProducts.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600 mb-1">Orders This Month</p>
-                      <p className="text-2xl font-bold text-gray-900">
-                        {salesStats.totalOrdersThisMonth.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600 mb-1">Average Revenue per Customer</p>
-                      {salesStats.platformRevenueByCurrency.length > 0 && salesStats.activeRestaurants > 0 ? (
-                        <div className="space-y-1">
-                          {salesStats.platformRevenueByCurrency.map(({ currency, amount }) => (
-                            <p key={currency} className="text-xl font-bold text-gray-900">
-                              {formatCurrency(amount / salesStats.activeRestaurants, currency)}
-                            </p>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-2xl font-bold text-gray-900">
-                          {formatCurrency(0, 'USD')}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <CountryAnalytics />
               </div>
             )}
 
