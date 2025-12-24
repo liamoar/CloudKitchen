@@ -504,12 +504,12 @@ export function SuperAdminDashboard() {
                             <td className="px-6 py-4">
                               {restaurant.subdomain ? (
                                 <a
-                                  href={`https://${restaurant.subdomain}.yourdomain.com`}
+                                  href={`https://${restaurant.subdomain}.hejo.app`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-sm text-blue-600 hover:text-blue-800"
                                 >
-                                  {restaurant.subdomain}.yourdomain.com
+                                  {restaurant.subdomain}.hejo.app
                                 </a>
                               ) : (
                                 <span className="text-sm text-gray-500">No subdomain</span>
