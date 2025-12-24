@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, DollarSign, CheckCircle, Clock, AlertTriangle, CreditCard, Upload, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, DollarSign, CheckCircle, Clock, AlertTriangle, CreditCard, Upload, Check, X, ChevronDown, ChevronUp, Pause, Play, Ban } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCurrencySymbol } from '../../lib/utils';
@@ -22,6 +22,9 @@ interface RestaurantData {
   trial_days_remaining: number;
   subscription_days_remaining: number;
   ending_soon: boolean;
+  paused_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
 }
 
 interface TierData {
@@ -72,6 +75,8 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [expandedBankDetails, setExpandedBankDetails] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState('');
 
   useEffect(() => {
     loadData();
@@ -90,7 +95,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
       if (!restaurantBasic) return;
 
       const { data: restaurantData } = await supabase
-        .from('restaurant_subscription_status')
+        .from('restaurants')
         .select('*')
         .eq('id', restaurantBasic.id)
         .maybeSingle();
@@ -98,9 +103,26 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
       if (restaurantData) {
         const transformedData = {
           ...restaurantData,
-          subscription_status: restaurantData.status,
-          current_tier_id: restaurantData.current_tier_id
+          subscription_status: restaurantData.subscription_status,
+          current_tier_id: restaurantData.current_tier_id,
+          trial_days_remaining: 0,
+          subscription_days_remaining: 0,
+          ending_soon: false
         };
+
+        if (restaurantData.trial_ends_at) {
+          const trialEnd = new Date(restaurantData.trial_ends_at);
+          const daysLeft = Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          transformedData.trial_days_remaining = Math.max(0, daysLeft);
+        }
+
+        if (restaurantData.subscription_ends_at) {
+          const subEnd = new Date(restaurantData.subscription_ends_at);
+          const daysLeft = Math.ceil((subEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          transformedData.subscription_days_remaining = Math.max(0, daysLeft);
+          transformedData.ending_soon = daysLeft <= 5;
+        }
+
         setRestaurant(transformedData as any);
 
         const { data: tiersData } = await supabase
@@ -146,6 +168,102 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
     }
   };
 
+  const handleRequestTierChange = async (newTier: TierData) => {
+    if (!restaurant || !currentTier) return;
+
+    try {
+      setMessage(null);
+      const { data, error } = await supabase.rpc('request_tier_change', {
+        p_restaurant_id: restaurant.id,
+        p_new_tier_id: newTier.id
+      });
+
+      if (error) throw error;
+
+      if (data && data.success) {
+        setMessage({ text: `${data.invoice_type} invoice created. Please complete payment.`, type: 'success' });
+        await loadData();
+        setShowPlanSelection(false);
+      } else {
+        setMessage({ text: data?.error || 'Failed to request tier change', type: 'error' });
+      }
+    } catch (error) {
+      console.error('Error requesting tier change:', error);
+      setMessage({ text: 'Failed to request tier change', type: 'error' });
+    }
+  };
+
+  const handlePauseSubscription = async () => {
+    if (!restaurant) return;
+
+    if (!confirm('Are you sure you want to pause your subscription? You can resume it before it expires.')) return;
+
+    try {
+      const { data, error } = await supabase.rpc('pause_subscription', {
+        p_restaurant_id: restaurant.id
+      });
+
+      if (error) throw error;
+
+      if (data && data.success) {
+        setMessage({ text: 'Subscription paused successfully', type: 'success' });
+        await loadData();
+      } else {
+        setMessage({ text: data?.error || 'Failed to pause subscription', type: 'error' });
+      }
+    } catch (error) {
+      console.error('Error pausing subscription:', error);
+      setMessage({ text: 'Failed to pause subscription', type: 'error' });
+    }
+  };
+
+  const handleResumeSubscription = async () => {
+    if (!restaurant) return;
+
+    try {
+      const { data, error } = await supabase.rpc('resume_subscription', {
+        p_restaurant_id: restaurant.id
+      });
+
+      if (error) throw error;
+
+      if (data && data.success) {
+        setMessage({ text: 'Subscription resumed successfully', type: 'success' });
+        await loadData();
+      } else {
+        setMessage({ text: data?.error || 'Failed to resume subscription', type: 'error' });
+      }
+    } catch (error) {
+      console.error('Error resuming subscription:', error);
+      setMessage({ text: 'Failed to resume subscription', type: 'error' });
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!restaurant) return;
+
+    try {
+      const { data, error } = await supabase.rpc('cancel_subscription', {
+        p_restaurant_id: restaurant.id,
+        p_reason: cancellationReason || null
+      });
+
+      if (error) throw error;
+
+      if (data && data.success) {
+        setMessage({ text: 'Subscription cancelled successfully', type: 'success' });
+        setShowCancelDialog(false);
+        setCancellationReason('');
+        await loadData();
+      } else {
+        setMessage({ text: data?.error || 'Failed to cancel subscription', type: 'error' });
+      }
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      setMessage({ text: 'Failed to cancel subscription', type: 'error' });
+    }
+  };
+
   const handleSelectPlan = (tier: TierData) => {
     setSelectedTier(tier);
     setShowPaymentForm(true);
@@ -154,7 +272,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
 
   const handleSubmitPayment = async () => {
     if (!restaurant || !selectedTier || !receiptUrl.trim()) {
-      setMessage({ text: 'Please upload payment receipt', type: 'error' });
+      setMessage({ text: 'Please enter payment receipt URL', type: 'error' });
       return;
     }
 
@@ -219,6 +337,8 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
       ACTIVE: { bg: 'bg-green-100', text: 'text-green-700', label: 'Active' },
       OVERDUE: { bg: 'bg-red-100', text: 'text-red-700', label: 'Payment Overdue' },
       SUSPENDED: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Suspended' },
+      PAUSED: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Paused' },
+      CANCELLED: { bg: 'bg-gray-200', text: 'text-gray-800', label: 'Cancelled' },
     };
     const badge = badges[status] || badges.TRIAL;
     return (
@@ -254,9 +374,13 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
     return <div className="text-center py-8 text-red-600">Failed to load restaurant data</div>;
   }
 
-  const pendingInvoice = invoices.find(inv => inv.status === 'PENDING' || inv.status === 'REJECTED');
+  const pendingInvoices = invoices.filter(inv => ['PENDING', 'REJECTED'].includes(inv.status));
   const trialDaysLeft = restaurant.trial_days_remaining || 0;
   const subscriptionDaysLeft = restaurant.subscription_days_remaining || 0;
+  const canChangeTier = ['ACTIVE', 'TRIAL'].includes(restaurant.subscription_status) && currentTier;
+  const canCancel = ['ACTIVE', 'TRIAL', 'OVERDUE', 'PAUSED'].includes(restaurant.subscription_status);
+  const canPause = restaurant.subscription_status === 'ACTIVE';
+  const canResume = restaurant.subscription_status === 'PAUSED';
 
   return (
     <div className="space-y-6">
@@ -271,6 +395,20 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
           <h2 className="text-2xl font-bold text-gray-900">Subscription Status</h2>
           {getStatusBadge(restaurant.subscription_status)}
         </div>
+
+        {pendingInvoices.length > 0 && (
+          <div className="bg-orange-50 border-l-4 border-orange-400 p-4 mb-6">
+            <div className="flex">
+              <AlertTriangle className="text-orange-400" size={24} />
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-orange-800">Action Required</h3>
+                <div className="mt-2 text-sm text-orange-700">
+                  <p>You have {pendingInvoices.length} pending invoice{pendingInvoices.length > 1 ? 's' : ''}. Please complete payment to avoid service interruption.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {restaurant.subscription_status === 'TRIAL' && restaurant.trial_ends_at && (
@@ -321,10 +459,9 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
               </p>
             </div>
           )}
-
         </div>
 
-        <div className="mt-6 flex gap-3">
+        <div className="mt-6 flex flex-wrap gap-3">
           {!currentTier && (
             <button
               onClick={() => setShowPlanSelection(!showPlanSelection)}
@@ -333,75 +470,160 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
               Choose a Plan
             </button>
           )}
-          {currentTier && restaurant.subscription_status === 'ACTIVE' && (
+          {canChangeTier && (
             <button
               onClick={() => setShowPlanSelection(!showPlanSelection)}
               className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold"
             >
-              Upgrade Plan
+              Change Plan
             </button>
           )}
-          {pendingInvoice && (
+          {pendingInvoices.length > 0 && (
             <button
               onClick={() => {
-                setSelectedTier(availableTiers.find(t => t.id === pendingInvoice.tier_id) || null);
+                const invoice = pendingInvoices[0];
+                setSelectedTier(availableTiers.find(t => t.id === invoice.tier_id) || null);
                 setShowPaymentForm(true);
               }}
-              className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold"
+              className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold flex items-center gap-2"
             >
+              <Upload size={20} />
               Complete Payment
+            </button>
+          )}
+          {canPause && (
+            <button
+              onClick={handlePauseSubscription}
+              className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-semibold flex items-center gap-2"
+            >
+              <Pause size={20} />
+              Pause
+            </button>
+          )}
+          {canResume && (
+            <button
+              onClick={handleResumeSubscription}
+              className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold flex items-center gap-2"
+            >
+              <Play size={20} />
+              Resume
+            </button>
+          )}
+          {canCancel && (
+            <button
+              onClick={() => setShowCancelDialog(true)}
+              className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold flex items-center gap-2"
+            >
+              <Ban size={20} />
+              Cancel Subscription
             </button>
           )}
         </div>
       </div>
 
+      {showCancelDialog && (
+        <div className="bg-white rounded-lg shadow-md p-6 border-2 border-red-200">
+          <h3 className="text-xl font-bold text-red-900 mb-4">Cancel Subscription</h3>
+          <p className="text-gray-700 mb-4">
+            Are you sure you want to cancel your subscription? This action cannot be undone.
+          </p>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Reason for cancellation (optional)
+            </label>
+            <textarea
+              value={cancellationReason}
+              onChange={(e) => setCancellationReason(e.target.value)}
+              rows={3}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              placeholder="Help us improve by telling us why you're cancelling..."
+            />
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleCancelSubscription}
+              className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold"
+            >
+              Confirm Cancellation
+            </button>
+            <button
+              onClick={() => {
+                setShowCancelDialog(false);
+                setCancellationReason('');
+              }}
+              className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-semibold"
+            >
+              Keep Subscription
+            </button>
+          </div>
+        </div>
+      )}
+
       {showPlanSelection && (
         <div className="bg-white rounded-lg shadow-md p-6">
           <h3 className="text-xl font-bold text-gray-900 mb-4">Available Plans</h3>
           <div className="grid md:grid-cols-3 gap-4">
-            {availableTiers.map((tier) => (
-              <div
-                key={tier.id}
-                className={`border-2 rounded-lg p-4 ${
-                  tier.id === currentTier?.id
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 hover:border-orange-300'
-                }`}
-              >
-                <h4 className="text-lg font-bold text-gray-900">{tier.name}</h4>
-                <p className="text-3xl font-bold text-orange-600 my-3">
-                  {getCurrencySymbol(tier.currency)}{tier.monthly_price}
-                  <span className="text-sm text-gray-600">/month</span>
-                </p>
-                <ul className="space-y-2 text-sm text-gray-700 mb-4">
-                  <li className="flex items-center gap-2">
-                    <Check size={16} className="text-green-600" />
-                    {tier.product_limit === -1 ? 'Unlimited' : tier.product_limit} Products
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check size={16} className="text-green-600" />
-                    {tier.order_limit_per_month === -1 ? 'Unlimited' : tier.order_limit_per_month} Orders/month
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check size={16} className="text-green-600" />
-                    {tier.storage_limit_mb}MB Storage
-                  </li>
-                </ul>
-                {tier.id !== currentTier?.id && (
-                  <button
-                    onClick={() => handleSelectPlan(tier)}
-                    className="w-full px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium"
-                  >
-                    Select Plan
-                  </button>
-                )}
-                {tier.id === currentTier?.id && (
-                  <div className="w-full px-4 py-2 bg-green-100 text-green-700 rounded-lg font-medium text-center">
-                    Current Plan
-                  </div>
-                )}
-              </div>
-            ))}
+            {availableTiers.map((tier) => {
+              const isCurrentTier = tier.id === currentTier?.id;
+              const isUpgrade = currentTier && tier.monthly_price > currentTier.monthly_price;
+              const isDowngrade = currentTier && tier.monthly_price < currentTier.monthly_price;
+
+              return (
+                <div
+                  key={tier.id}
+                  className={`border-2 rounded-lg p-4 ${
+                    isCurrentTier
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-gray-200 hover:border-orange-300'
+                  }`}
+                >
+                  <h4 className="text-lg font-bold text-gray-900">{tier.name}</h4>
+                  <p className="text-3xl font-bold text-orange-600 my-3">
+                    {getCurrencySymbol(tier.currency)}{tier.monthly_price}
+                    <span className="text-sm text-gray-600">/month</span>
+                  </p>
+                  <ul className="space-y-2 text-sm text-gray-700 mb-4">
+                    <li className="flex items-center gap-2">
+                      <Check size={16} className="text-green-600" />
+                      {tier.product_limit === -1 ? 'Unlimited' : tier.product_limit} Products
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check size={16} className="text-green-600" />
+                      {tier.order_limit_per_month === -1 ? 'Unlimited' : tier.order_limit_per_month} Orders/month
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check size={16} className="text-green-600" />
+                      {tier.storage_limit_mb}MB Storage
+                    </li>
+                  </ul>
+                  {!isCurrentTier && !currentTier && (
+                    <button
+                      onClick={() => handleSelectPlan(tier)}
+                      className="w-full px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium"
+                    >
+                      Select Plan
+                    </button>
+                  )}
+                  {!isCurrentTier && currentTier && (
+                    <button
+                      onClick={() => handleRequestTierChange(tier)}
+                      className={`w-full px-4 py-2 ${
+                        isUpgrade
+                          ? 'bg-blue-500 hover:bg-blue-600'
+                          : 'bg-orange-500 hover:bg-orange-600'
+                      } text-white rounded-lg font-medium`}
+                    >
+                      {isUpgrade ? 'Upgrade' : isDowngrade ? 'Downgrade' : 'Switch'} to {tier.name}
+                    </button>
+                  )}
+                  {isCurrentTier && (
+                    <div className="w-full px-4 py-2 bg-green-100 text-green-700 rounded-lg font-medium text-center">
+                      Current Plan
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -528,7 +750,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
               </thead>
               <tbody className="divide-y">
                 {invoices.map((invoice) => (
-                  <tr key={invoice.id}>
+                  <tr key={invoice.id} className={invoice.status === 'PENDING' ? 'bg-orange-50' : ''}>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{invoice.invoice_number}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{invoice.invoice_type.replace('_', ' ')}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{invoice.tier.name}</td>
