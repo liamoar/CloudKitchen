@@ -5,6 +5,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../lib/utils';
 import type { Product, ProductCategory, RestaurantSettings } from '../../lib/database.types';
 
+interface ProductLimit {
+  can_add: boolean;
+  current_count: number;
+  limit: number;
+  tier_name: string;
+  remaining: number;
+}
+
 export function EnhancedProductManagement() {
   const { user } = useAuth();
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
@@ -19,6 +27,7 @@ export function EnhancedProductManagement() {
   const [notification, setNotification] = useState<{message: string; type: 'success' | 'error'} | null>(null);
   const [uploading, setUploading] = useState(false);
   const [currency, setCurrency] = useState('INR');
+  const [productLimit, setProductLimit] = useState<ProductLimit | null>(null);
 
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -50,6 +59,7 @@ export function EnhancedProductManagement() {
       loadSettings();
       loadProducts();
       loadCategories();
+      checkProductLimit();
     }
   }, [restaurantId]);
 
@@ -94,6 +104,16 @@ export function EnhancedProductManagement() {
       .eq('restaurant_id', restaurantId)
       .order('display_order', { ascending: true });
     if (data) setCategories(data);
+  };
+
+  const checkProductLimit = async () => {
+    if (!restaurantId) return;
+    const { data, error } = await supabase.rpc('check_product_limit', {
+      restaurant_uuid: restaurantId
+    });
+    if (data && !error) {
+      setProductLimit(data);
+    }
   };
 
   const showNotification = (message: string, type: 'success' | 'error') => {
@@ -174,6 +194,13 @@ export function EnhancedProductManagement() {
     const file = event.target.files?.[0];
     if (!file || !restaurantId) return;
 
+    await checkProductLimit();
+    if (productLimit && !productLimit.can_add) {
+      showNotification(`Product limit reached! Your plan (${productLimit.tier_name}) allows ${productLimit.limit} products. Please upgrade to add more.`, 'error');
+      event.target.value = '';
+      return;
+    }
+
     setUploading(true);
     try {
       const text = await file.text();
@@ -183,9 +210,19 @@ export function EnhancedProductManagement() {
 
       let successCount = 0;
       let errorCount = 0;
+      let skippedDueToLimit = 0;
 
       for (const row of dataRows) {
         if (row.length < 3 || !row[0]) continue;
+
+        const { data: limitCheck } = await supabase.rpc('check_product_limit', {
+          restaurant_uuid: restaurantId
+        });
+
+        if (limitCheck && !limitCheck.can_add) {
+          skippedDueToLimit++;
+          continue;
+        }
 
         const productData: any = {
           restaurant_id: restaurantId,
@@ -249,13 +286,15 @@ export function EnhancedProductManagement() {
         }
       }
 
-      showNotification(
-        `Import complete! ${successCount} products added${errorCount > 0 ? `, ${errorCount} failed` : ''}`,
-        errorCount > 0 ? 'error' : 'success'
-      );
+      let message = `Import complete! ${successCount} products added`;
+      if (errorCount > 0) message += `, ${errorCount} failed`;
+      if (skippedDueToLimit > 0) message += `, ${skippedDueToLimit} skipped (limit reached)`;
+
+      showNotification(message, errorCount > 0 || skippedDueToLimit > 0 ? 'error' : 'success');
 
       await loadProducts();
       await loadCategories();
+      await checkProductLimit();
     } catch (error) {
       console.error('CSV upload error:', error);
       showNotification('Failed to process CSV file', 'error');
@@ -278,6 +317,7 @@ export function EnhancedProductManagement() {
     } else {
       showNotification('Product deleted successfully', 'success');
       loadProducts();
+      checkProductLimit();
     }
   };
 
@@ -300,6 +340,14 @@ export function EnhancedProductManagement() {
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurantId) return;
+
+    if (!editingProductId) {
+      await checkProductLimit();
+      if (productLimit && !productLimit.can_add) {
+        showNotification(`Product limit reached! Your plan (${productLimit.tier_name}) allows ${productLimit.limit} products. Please upgrade to add more.`, 'error');
+        return;
+      }
+    }
 
     const productData: any = {
       restaurant_id: restaurantId,
@@ -342,6 +390,7 @@ export function EnhancedProductManagement() {
         image_url: '', category_id: '', is_active: true,
       });
       loadProducts();
+      checkProductLimit();
     }
   };
 
@@ -409,6 +458,35 @@ export function EnhancedProductManagement() {
         </div>
       )}
 
+      {productLimit && !productLimit.can_add && (
+        <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold">!</div>
+            <div className="flex-1">
+              <h3 className="font-bold text-orange-900 mb-1">Product Limit Reached</h3>
+              <p className="text-orange-800 text-sm">
+                You have reached your product limit of {productLimit.limit} products on the {productLimit.tier_name} plan.
+                You cannot add more products. Please upgrade your plan to add more products.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {productLimit && productLimit.can_add && productLimit.remaining <= 3 && (
+        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-6 h-6 bg-yellow-500 text-white rounded-full flex items-center justify-center font-bold">!</div>
+            <div className="flex-1">
+              <h3 className="font-bold text-yellow-900 mb-1">Approaching Product Limit</h3>
+              <p className="text-yellow-800 text-sm">
+                You have {productLimit.remaining} product slot(s) remaining out of {productLimit.limit} on the {productLimit.tier_name} plan.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="flex gap-2">
@@ -460,6 +538,10 @@ export function EnhancedProductManagement() {
             {activeView === 'products' ? (
               <button
                 onClick={() => {
+                  if (productLimit && !productLimit.can_add) {
+                    showNotification(`Product limit reached! Your plan (${productLimit.tier_name}) allows ${productLimit.limit} products. Please upgrade to add more.`, 'error');
+                    return;
+                  }
                   setShowProductForm(true);
                   setEditingProductId(null);
                   setProductForm({
@@ -467,7 +549,12 @@ export function EnhancedProductManagement() {
                     image_url: '', category_id: '', is_active: true,
                   });
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                disabled={productLimit ? !productLimit.can_add : false}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  productLimit && !productLimit.can_add
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-orange-500 text-white hover:bg-orange-600'
+                }`}
               >
                 <Plus size={20} />
                 Add Product

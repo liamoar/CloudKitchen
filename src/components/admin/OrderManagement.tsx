@@ -35,6 +35,16 @@ interface Rider {
   is_active: boolean;
 }
 
+interface OrderLimit {
+  limit_reached: boolean;
+  can_accept_orders: boolean;
+  can_modify_orders: boolean;
+  current_count: number;
+  limit: number;
+  tier_name: string;
+  remaining: number;
+}
+
 const ITEMS_PER_PAGE = 10;
 
 interface OrderManagementProps {
@@ -51,6 +61,7 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [riders, setRiders] = useState<Rider[]>([]);
   const [notification, setNotification] = useState<{message: string; type: 'success' | 'error'} | null>(null);
+  const [orderLimit, setOrderLimit] = useState<OrderLimit | null>(null);
 
   const currency = propCurrency || restaurant?.restaurant_currency || 'USD';
   
@@ -71,7 +82,11 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
   useEffect(() => {
     if (restaurant?.id) {
       loadOrders();
-      const interval = setInterval(loadOrders, 30000);
+      checkOrderLimit();
+      const interval = setInterval(() => {
+        loadOrders();
+        checkOrderLimit();
+      }, 30000);
       return () => clearInterval(interval);
     }
   }, [restaurant?.id]);
@@ -120,6 +135,16 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
 
     if (data) {
       setRiders(data);
+    }
+  };
+
+  const checkOrderLimit = async () => {
+    if (!restaurant?.id) return;
+    const { data, error } = await supabase.rpc('check_order_limit', {
+      restaurant_uuid: restaurant.id
+    });
+    if (data && !error) {
+      setOrderLimit(data);
     }
   };
 
@@ -280,7 +305,11 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
       showNotification('Cannot process orders. Your subscription payment is overdue.', 'error');
       return;
     }
-    
+    if (orderLimit && !orderLimit.can_modify_orders) {
+      showNotification(`Monthly order limit reached! Your plan allows ${orderLimit.limit} orders per month. Please upgrade or wait for next billing cycle.`, 'error');
+      return;
+    }
+
     saveScrollPosition();
     
     try {
@@ -296,7 +325,11 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
 
   const updatePaymentConfirmation = async (orderId: string, confirmed: boolean) => {
     if (!restaurant?.id) return;
-    
+    if (orderLimit && !orderLimit.can_modify_orders) {
+      showNotification(`Monthly order limit reached! Your plan allows ${orderLimit.limit} orders per month. Please upgrade or wait for next billing cycle.`, 'error');
+      return;
+    }
+
     saveScrollPosition();
     
     try {
@@ -312,7 +345,11 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
 
   const assignRider = async (orderId: string, riderId: string) => {
     if (!restaurant?.id) return;
-    
+    if (orderLimit && !orderLimit.can_modify_orders) {
+      showNotification(`Monthly order limit reached! Your plan allows ${orderLimit.limit} orders per month. Please upgrade or wait for next billing cycle.`, 'error');
+      return;
+    }
+
     saveScrollPosition();
     
     try {
@@ -411,6 +448,7 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
     const nextStatus = getNextStatus(order.status);
     const statusOptions = getStatusOptions(order.status);
     const isFinalStatus = order.status === 'DELIVERED' || order.status === 'CANCELLED';
+    const canModify = orderLimit ? orderLimit.can_modify_orders : true;
 
     // Format date and time
     const orderDate = new Date(order.created_at);
@@ -622,6 +660,22 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
 
               {/* Right Column - Actions */}
               <div className="space-y-4">
+                {/* Order Limit Warning */}
+                {!canModify && (
+                  <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="text-orange-600 flex-shrink-0 mt-0.5" size={20} />
+                      <div>
+                        <p className="text-sm font-semibold text-orange-900">Monthly Order Limit Reached</p>
+                        <p className="text-xs text-orange-800 mt-1">
+                          You have processed {orderLimit?.current_count}/{orderLimit?.limit} orders this month.
+                          You can view orders but cannot modify them. Upgrade your plan or wait for next billing cycle.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Status Update - Only show for non-final statuses */}
                 {!isFinalStatus && (
                   <div>
@@ -632,7 +686,12 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
                         <div className="mb-4">
                           <button
                             onClick={() => updateOrderStatus(order.id, nextStatus)}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
+                            disabled={!canModify}
+                            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors ${
+                              canModify
+                                ? 'bg-green-500 hover:bg-green-600 text-white'
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            }`}
                           >
                             <ArrowRight size={18} />
                             Mark as {getStatusConfig(nextStatus).label}
@@ -642,20 +701,25 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
                           </p>
                         </div>
                       )}
-                      
+
                       {/* Cancel Button */}
                       {order.status !== 'CANCELLED' && (
                         <div className="mb-4">
                           <button
                             onClick={() => updateOrderStatus(order.id, 'CANCELLED')}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors"
+                            disabled={!canModify}
+                            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors ${
+                              canModify
+                                ? 'bg-red-500 hover:bg-red-600 text-white'
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            }`}
                           >
                             <X size={18} />
                             Cancel Order
                           </button>
                         </div>
                       )}
-                      
+
                       {/* All Status Options */}
                       {statusOptions.length > 0 && (
                         <div>
@@ -665,7 +729,12 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
                               <button
                                 key={status}
                                 onClick={() => updateOrderStatus(order.id, status)}
-                                className={`px-3 py-2 rounded text-sm ${getStatusConfig(status).bg} ${getStatusConfig(status).color} border hover:opacity-90 transition-opacity`}
+                                disabled={!canModify}
+                                className={`px-3 py-2 rounded text-sm border transition-opacity ${
+                                  canModify
+                                    ? `${getStatusConfig(status).bg} ${getStatusConfig(status).color} hover:opacity-90`
+                                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                }`}
                               >
                                 {getStatusConfig(status).label}
                               </button>
@@ -686,25 +755,30 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
                         <div className="font-medium">Payment Method</div>
                         <div className="text-sm text-gray-600 capitalize">{order.payment_method === 'COD' ? 'Cash on Delivery' : 'Bank Transfer'}</div>
                       </div>
-                      <label className="flex items-center gap-3 cursor-pointer">
+                      <label className={`flex items-center gap-3 ${canModify && !(isFinalStatus && !order.payment_confirmed) ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
                         <div className="relative">
                           <input
                             type="checkbox"
                             checked={order.payment_confirmed}
                             onChange={(e) => updatePaymentConfirmation(order.id, e.target.checked)}
                             className="sr-only"
-                            disabled={isFinalStatus && !order.payment_confirmed}
+                            disabled={!canModify || (isFinalStatus && !order.payment_confirmed)}
                           />
-                          <div className={`w-12 h-6 rounded-full transition-colors ${order.payment_confirmed ? 'bg-green-500' : 'bg-gray-300'} ${isFinalStatus && !order.payment_confirmed ? 'opacity-50' : ''}`}>
+                          <div className={`w-12 h-6 rounded-full transition-colors ${order.payment_confirmed ? 'bg-green-500' : 'bg-gray-300'} ${(!canModify || (isFinalStatus && !order.payment_confirmed)) ? 'opacity-50' : ''}`}>
                             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${order.payment_confirmed ? 'left-7' : 'left-1'}`} />
                           </div>
                         </div>
-                        <span className={`font-medium ${order.payment_confirmed ? 'text-green-600' : 'text-gray-600'} ${isFinalStatus && !order.payment_confirmed ? 'opacity-50' : ''}`}>
+                        <span className={`font-medium ${order.payment_confirmed ? 'text-green-600' : 'text-gray-600'} ${(!canModify || (isFinalStatus && !order.payment_confirmed)) ? 'opacity-50' : ''}`}>
                           {order.payment_confirmed ? 'Confirmed' : 'Pending'}
                         </span>
                       </label>
                     </div>
-                    {isFinalStatus && !order.payment_confirmed && (
+                    {!canModify && (
+                      <p className="text-xs text-orange-600 mt-2">
+                        Monthly order limit reached. Cannot modify payment status.
+                      </p>
+                    )}
+                    {canModify && isFinalStatus && !order.payment_confirmed && (
                       <p className="text-xs text-red-500 mt-2">
                         Note: Cannot confirm payment for delivered/cancelled orders
                       </p>
@@ -753,8 +827,9 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
                             <label className="text-sm font-medium text-gray-700 mb-2 block">Assign Rider</label>
                             <select
                               onChange={(e) => e.target.value && assignRider(order.id, e.target.value)}
-                              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                               defaultValue=""
+                              disabled={!canModify}
                             >
                               <option value="">Select a rider...</option>
                               {riders.map((rider) => (
@@ -764,7 +839,9 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
                               ))}
                             </select>
                             <p className="text-xs text-gray-500 mt-2">
-                              Assigning a rider will change status to DISPATCHED
+                              {canModify
+                                ? 'Assigning a rider will change status to DISPATCHED'
+                                : 'Monthly order limit reached. Cannot assign rider.'}
                             </p>
                           </div>
                         )}
@@ -851,6 +928,35 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
             <p className="text-red-700 text-sm mt-1">
               Your subscription payment is overdue. You cannot process orders until payment is confirmed.
               Please go to the Subscription tab to renew.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Order Limit Warning */}
+      {orderLimit && orderLimit.limit_reached && (
+        <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertTriangle className="text-orange-600 flex-shrink-0" size={24} />
+          <div>
+            <p className="text-orange-900 font-semibold">Monthly Order Limit Reached</p>
+            <p className="text-orange-700 text-sm mt-1">
+              You have processed {orderLimit.current_count} out of {orderLimit.limit} orders allowed on your {orderLimit.tier_name} plan this month.
+              Your storefront will continue accepting orders, but you can only view them in the dashboard.
+              To edit, update, or manage orders, please upgrade your plan or wait for the next billing cycle.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Order Limit Approaching Warning */}
+      {orderLimit && !orderLimit.limit_reached && orderLimit.remaining <= 3 && orderLimit.remaining > 0 && (
+        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertTriangle className="text-yellow-600 flex-shrink-0" size={24} />
+          <div>
+            <p className="text-yellow-900 font-semibold">Approaching Monthly Order Limit</p>
+            <p className="text-yellow-700 text-sm mt-1">
+              You have processed {orderLimit.current_count} out of {orderLimit.limit} orders this month.
+              Only {orderLimit.remaining} order(s) remaining before you reach your limit on the {orderLimit.tier_name} plan.
             </p>
           </div>
         </div>
