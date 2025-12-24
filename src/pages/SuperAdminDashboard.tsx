@@ -469,26 +469,10 @@ export function SuperAdminDashboard() {
         .delete()
         .eq('restaurant_id', restaurantId);
 
-      if (ownerId) {
-        const { data: supportTickets } = await supabase
-          .from('support_tickets')
-          .select('id')
-          .eq('restaurant_id', restaurantId);
-
-        if (supportTickets && supportTickets.length > 0) {
-          const ticketIds = supportTickets.map(t => t.id);
-
-          await supabase
-            .from('support_messages')
-            .delete()
-            .in('ticket_id', ticketIds);
-        }
-
-        await supabase
-          .from('support_tickets')
-          .delete()
-          .eq('restaurant_id', restaurantId);
-      }
+      await supabase
+        .from('support_messages')
+        .delete()
+        .eq('restaurant_id', restaurantId);
 
       const { error: restaurantError } = await supabase
         .from('restaurants')
@@ -507,10 +491,21 @@ export function SuperAdminDashboard() {
           .maybeSingle();
 
         if (userData?.auth_id) {
-          const { error: authError } = await supabase.auth.admin.deleteUser(userData.auth_id);
+          const { data: session } = await supabase.auth.getSession();
+          const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`;
 
-          if (authError) {
-            console.error('Error deleting auth user:', authError);
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.session?.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ authId: userData.auth_id }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Error deleting auth user:', errorData);
           }
         }
       }
