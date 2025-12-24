@@ -96,7 +96,7 @@ export default function CountryTierManagement() {
     if (!editingTier) return;
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('subscription_tiers')
         .update({
           name: editForm.name,
@@ -109,16 +109,27 @@ export default function CountryTierManagement() {
           overdue_grace_days: editForm.overdue_grace_days,
           is_active: editForm.is_active
         })
-        .eq('id', editingTier);
+        .eq('id', editingTier)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating tier:', error);
+        alert(`Error updating tier: ${error.message}`);
+        return;
+      }
 
+      if (!data || data.length === 0) {
+        alert('No rows were updated. Please check permissions.');
+        return;
+      }
+
+      alert('Tier updated successfully!');
       await loadData();
       setEditingTier(null);
       setEditForm({});
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating tier:', error);
-      alert('Error updating tier');
+      alert(`Error updating tier: ${error?.message || 'Unknown error'}`);
     }
   };
 
