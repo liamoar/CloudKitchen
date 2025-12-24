@@ -469,25 +469,6 @@ export function SuperAdminDashboard() {
         .delete()
         .eq('restaurant_id', restaurantId);
 
-      const { data: customers } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('restaurant_id', restaurantId);
-
-      if (customers && customers.length > 0) {
-        const customerIds = customers.map(c => c.id);
-
-        await supabase
-          .from('customer_addresses')
-          .delete()
-          .in('customer_id', customerIds);
-      }
-
-      await supabase
-        .from('customers')
-        .delete()
-        .eq('restaurant_id', restaurantId);
-
       if (ownerId) {
         const { data: supportTickets } = await supabase
           .from('support_tickets')
