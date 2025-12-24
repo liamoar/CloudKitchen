@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../lib/utils';
-import { Building2, DollarSign, Clock, CheckCircle, XCircle, LogOut, Trash2, Ban, Package, ShoppingCart, Edit2, Eye, EyeOff, Globe } from 'lucide-react';
+import { Building2, DollarSign, Clock, CheckCircle, XCircle, LogOut, Trash2, Ban, Package, ShoppingCart, Edit2, Eye, EyeOff, Globe, MessageCircle } from 'lucide-react';
 import PaymentApproval from '../components/superadmin/PaymentApproval';
 import CountryTierManagement from '../components/superadmin/CountryTierManagement';
 import CountryAnalytics from '../components/superadmin/CountryAnalytics';
+import { SupportChatManagement } from '../components/superadmin/SupportChatManagement';
 
 interface Restaurant {
   id: string;
@@ -50,7 +51,7 @@ interface SalesStats {
 export function SuperAdminDashboard() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'tiers'>('restaurants');
+  const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'tiers' | 'chat'>('restaurants');
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [salesStats, setSalesStats] = useState<SalesStats>({
     platformRevenueByCurrency: [],
@@ -470,6 +471,17 @@ export function SuperAdminDashboard() {
             <Globe size={20} />
             Countries & Tiers
           </button>
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
+              activeTab === 'chat'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <MessageCircle size={20} />
+            Support Chat
+          </button>
         </div>
 
         {loading ? (
@@ -772,6 +784,10 @@ export function SuperAdminDashboard() {
 
             {activeTab === 'tiers' && (
               <CountryTierManagement />
+            )}
+
+            {activeTab === 'chat' && (
+              <SupportChatManagement />
             )}
           </>
         )}

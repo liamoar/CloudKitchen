@@ -4,12 +4,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { RestaurantSettings } from '../components/admin/RestaurantSettings';
-import { ProductManagement } from '../components/admin/ProductManagement';
+import { EnhancedProductManagement } from '../components/admin/EnhancedProductManagement';
 import { OrderManagement } from '../components/admin/OrderManagement';
 import { SalesAnalytics } from '../components/admin/SalesAnalytics';
 import { SubscriptionStatus } from '../components/admin/SubscriptionStatus';
 import { RiderManagement } from '../components/admin/RiderManagement';
 import { CustomerManagement } from '../components/admin/CustomerManagement';
+import { SupportChatPopup } from '../components/admin/SupportChatPopup';
 
 type Tab = 'settings' | 'products' | 'orders' | 'sales' | 'subscription' | 'riders' | 'customers';
 
@@ -304,7 +305,7 @@ export function RestroAdminDashboard() {
         ) : (
           <>
             {activeTab === 'settings' && <RestaurantSettings />}
-            {activeTab === 'products' && <ProductManagement currency={restaurantInfo?.currency} />}
+            {activeTab === 'products' && <EnhancedProductManagement />}
             {activeTab === 'orders' && <OrderManagement currency={restaurantInfo?.currency} />}
             {activeTab === 'customers' && <CustomerManagement />}
             {activeTab === 'riders' && <RiderManagement />}
@@ -313,6 +314,8 @@ export function RestroAdminDashboard() {
           </>
         )}
       </div>
+
+      <SupportChatPopup />
     </div>
   );
 }
