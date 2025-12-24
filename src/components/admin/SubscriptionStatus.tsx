@@ -12,12 +12,16 @@ interface RestaurantData {
   id: string;
   name: string;
   country: string;
+  status: string;
   subscription_status: string;
   current_tier_id: string | null;
   trial_ends_at: string | null;
   subscription_starts_at: string | null;
   subscription_ends_at: string | null;
   next_billing_date: string | null;
+  trial_days_remaining: number;
+  subscription_days_remaining: number;
+  ending_soon: boolean;
 }
 
 interface TierData {
@@ -77,24 +81,27 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
     if (!user?.id) return;
 
     try {
-      const { data: restaurantData } = await supabase
+      const { data: restaurantBasic } = await supabase
         .from('restaurants')
-        .select(`
-          id,
-          name,
-          country,
-          subscription_status,
-          current_tier_id,
-          trial_ends_at,
-          subscription_starts_at,
-          subscription_ends_at,
-          next_billing_date
-        `)
+        .select('id, owner_id')
         .eq('owner_id', user.id)
         .maybeSingle();
 
+      if (!restaurantBasic) return;
+
+      const { data: restaurantData } = await supabase
+        .from('restaurant_subscription_status')
+        .select('*')
+        .eq('id', restaurantBasic.id)
+        .maybeSingle();
+
       if (restaurantData) {
-        setRestaurant(restaurantData);
+        const transformedData = {
+          ...restaurantData,
+          subscription_status: restaurantData.status,
+          current_tier_id: restaurantData.current_tier_id
+        };
+        setRestaurant(transformedData as any);
 
         const { data: tiersData } = await supabase
           .from('subscription_tiers')
@@ -248,9 +255,8 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
   }
 
   const pendingInvoice = invoices.find(inv => inv.status === 'PENDING' || inv.status === 'REJECTED');
-  const daysLeft = restaurant.trial_ends_at
-    ? Math.ceil((new Date(restaurant.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-    : null;
+  const trialDaysLeft = restaurant.trial_days_remaining || 0;
+  const subscriptionDaysLeft = restaurant.subscription_days_remaining || 0;
 
   return (
     <div className="space-y-6">
@@ -268,36 +274,36 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {restaurant.subscription_status === 'TRIAL' && restaurant.trial_ends_at && (
-            <div className="bg-blue-50 rounded-lg p-4">
+            <div className={`${trialDaysLeft <= 2 ? 'bg-red-50' : 'bg-blue-50'} rounded-lg p-4`}>
               <div className="flex items-center gap-3 mb-2">
-                <Clock className="text-blue-600" size={24} />
-                <h3 className="font-semibold text-blue-900">Trial Period</h3>
+                <Clock className={trialDaysLeft <= 2 ? 'text-red-600' : 'text-blue-600'} size={24} />
+                <h3 className={`font-semibold ${trialDaysLeft <= 2 ? 'text-red-900' : 'text-blue-900'}`}>Trial Period</h3>
               </div>
-              <p className="text-2xl font-bold text-blue-900 mb-1">
-                {daysLeft && daysLeft > 0 ? daysLeft : 0} {daysLeft === 1 ? 'Day' : 'Days'}
+              <p className={`text-2xl font-bold ${trialDaysLeft <= 2 ? 'text-red-900' : 'text-blue-900'} mb-1`}>
+                {trialDaysLeft >= 0 ? trialDaysLeft : 0} {trialDaysLeft === 1 ? 'Day' : 'Days'}
               </p>
-              <p className="text-xs text-blue-700">
-                {daysLeft && daysLeft > 0 ? 'until trial ends' : 'Trial ended'}
+              <p className={`text-xs ${trialDaysLeft <= 2 ? 'text-red-700' : 'text-blue-700'}`}>
+                {trialDaysLeft > 0 ? 'until trial ends' : 'Trial ended'}
               </p>
-              <p className="text-xs text-blue-600 mt-2">
+              <p className={`text-xs ${trialDaysLeft <= 2 ? 'text-red-600' : 'text-blue-600'} mt-2`}>
                 Ends: {new Date(restaurant.trial_ends_at).toLocaleDateString()}
               </p>
             </div>
           )}
 
           {restaurant.subscription_status === 'ACTIVE' && restaurant.subscription_ends_at && (
-            <div className="bg-orange-50 rounded-lg p-4">
+            <div className={`${subscriptionDaysLeft <= 5 ? 'bg-orange-50' : 'bg-green-50'} rounded-lg p-4`}>
               <div className="flex items-center gap-3 mb-2">
-                <Calendar className="text-orange-600" size={24} />
-                <h3 className="font-semibold text-orange-900">Next Renewal</h3>
+                <Calendar className={subscriptionDaysLeft <= 5 ? 'text-orange-600' : 'text-green-600'} size={24} />
+                <h3 className={`font-semibold ${subscriptionDaysLeft <= 5 ? 'text-orange-900' : 'text-green-900'}`}>Next Renewal</h3>
               </div>
-              <p className="text-2xl font-bold text-orange-900 mb-1">
-                {Math.ceil((new Date(restaurant.subscription_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} Days
+              <p className={`text-2xl font-bold ${subscriptionDaysLeft <= 5 ? 'text-orange-900' : 'text-green-900'} mb-1`}>
+                {subscriptionDaysLeft >= 0 ? subscriptionDaysLeft : 0} Days
               </p>
-              <p className="text-xs text-orange-700">
+              <p className={`text-xs ${subscriptionDaysLeft <= 5 ? 'text-orange-700' : 'text-green-700'}`}>
                 until next billing
               </p>
-              <p className="text-xs text-orange-600 mt-2">
+              <p className={`text-xs ${subscriptionDaysLeft <= 5 ? 'text-orange-600' : 'text-green-600'} mt-2`}>
                 Due: {new Date(restaurant.subscription_ends_at).toLocaleDateString()}
               </p>
             </div>

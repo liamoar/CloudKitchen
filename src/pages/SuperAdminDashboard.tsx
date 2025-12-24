@@ -19,11 +19,17 @@ interface Restaurant {
   status: string;
   domain_status: string;
   trial_end_date: string | null;
+  trial_ends_at: string | null;
   subscription_end_date: string | null;
+  subscription_ends_at: string | null;
   is_payment_overdue: boolean;
   created_at: string;
   current_month_orders: number;
   current_product_count: number;
+  trial_days_remaining: number;
+  subscription_days_remaining: number;
+  ending_soon: boolean;
+  days_until_action_needed: number;
   owner: {
     name: string;
     email: string;
@@ -33,6 +39,7 @@ interface Restaurant {
     name: string;
     order_limit_per_month: number;
     product_limit: number;
+    trial_days: number;
   } | null;
 }
 
@@ -82,21 +89,17 @@ export function SuperAdminDashboard() {
     setLoading(true);
     try {
       if (activeTab === 'restaurants') {
-        const { data } = await supabase
-          .from('restaurants')
-          .select(`
-            *,
-            owner:users!restaurants_owner_id_fkey(name, email, phone),
-            tier:subscription_tiers!restaurants_tier_id_fkey(name, order_limit_per_month, product_limit)
-          `)
+        const { data: statusData } = await supabase
+          .from('restaurant_subscription_status')
+          .select('*')
           .order('created_at', { ascending: false });
 
-        const restaurantsWithCounts = await Promise.all(
-          (data || []).map(async (restaurant) => {
+        const restaurantsWithDetails = await Promise.all(
+          (statusData || []).map(async (restaurant) => {
             const now = new Date();
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-            const [ordersData, productsData] = await Promise.all([
+            const [ordersData, productsData, ownerData] = await Promise.all([
               supabase
                 .from('orders')
                 .select('id', { count: 'exact' })
@@ -106,18 +109,43 @@ export function SuperAdminDashboard() {
               supabase
                 .from('products')
                 .select('id', { count: 'exact' })
-                .eq('restaurant_id', restaurant.id)
+                .eq('restaurant_id', restaurant.id),
+              supabase
+                .from('restaurants')
+                .select('owner_id, subdomain, domain_status')
+                .eq('id', restaurant.id)
+                .maybeSingle()
+                .then(async (res) => {
+                  if (res.data) {
+                    const userData = await supabase
+                      .from('users')
+                      .select('name, email, phone')
+                      .eq('id', res.data.owner_id)
+                      .maybeSingle();
+                    return { ...res.data, owner: userData.data };
+                  }
+                  return res.data;
+                })
             ]);
 
             return {
               ...restaurant,
               current_month_orders: ordersData.count || 0,
-              current_product_count: productsData.count || 0
+              current_product_count: productsData.count || 0,
+              subdomain: ownerData?.subdomain || '',
+              domain_status: ownerData?.domain_status || '',
+              owner: ownerData?.owner || { name: '', email: '', phone: '' },
+              tier: {
+                name: restaurant.tier_name || 'No Tier',
+                order_limit_per_month: restaurant.order_limit_per_month || 0,
+                product_limit: restaurant.product_limit || 0,
+                trial_days: restaurant.trial_days || 0
+              }
             };
           })
         );
 
-        setRestaurants(restaurantsWithCounts);
+        setRestaurants(restaurantsWithDetails);
       } else if (activeTab === 'payments') {
         // Payment approval is handled by the PaymentApproval component
         setLoading(false);
@@ -521,11 +549,9 @@ export function SuperAdminDashboard() {
                     </thead>
                     <tbody className="divide-y">
                       {restaurants.map((restaurant) => {
-                        const daysLeft = getDaysRemaining(
-                          restaurant.status === 'TRIAL'
-                            ? restaurant.trial_end_date
-                            : restaurant.subscription_end_date
-                        );
+                        const daysLeft = restaurant.status === 'TRIAL'
+                          ? restaurant.trial_days_remaining
+                          : restaurant.subscription_days_remaining;
                         const orderLimit = restaurant.tier?.order_limit_per_month || 0;
                         const productLimit = restaurant.tier?.product_limit || 0;
                         const orderUsage = orderLimit === -1 ? 'Unlimited' : `${restaurant.current_month_orders}/${orderLimit}`;

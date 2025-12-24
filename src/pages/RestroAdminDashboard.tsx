@@ -11,6 +11,7 @@ import { SubscriptionStatus } from '../components/admin/SubscriptionStatus';
 import { RiderManagement } from '../components/admin/RiderManagement';
 import { CustomerManagement } from '../components/admin/CustomerManagement';
 import { SupportChatPopup } from '../components/admin/SupportChatPopup';
+import { SubscriptionAlert } from '../components/admin/SubscriptionAlert';
 
 type Tab = 'settings' | 'products' | 'orders' | 'sales' | 'subscription' | 'riders' | 'customers';
 
@@ -187,6 +188,8 @@ export function RestroAdminDashboard() {
           </div>
         </div>
       </header>
+
+      <SubscriptionAlert />
 
       {showTrialWarning && trialDaysLeft !== null && (
         <div className="bg-yellow-50 border-b border-yellow-200">
