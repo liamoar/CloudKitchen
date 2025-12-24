@@ -80,30 +80,39 @@ export default function PaymentApproval() {
     setMessage(null);
 
     try {
-      const subscriptionStartDate = new Date();
-      const subscriptionEndDate = new Date();
+      const now = new Date();
+      const subscriptionStartDate = new Date(now);
+      const subscriptionEndDate = new Date(now);
       subscriptionEndDate.setDate(subscriptionEndDate.getDate() + 30);
 
       await supabase
         .from('payment_invoices')
         .update({
           status: 'APPROVED',
-          review_date: new Date().toISOString(),
+          review_date: now.toISOString(),
+          reviewed_by: 'superadmin',
         })
         .eq('id', invoice.id);
 
+      const updateData: any = {
+        subscription_status: 'ACTIVE',
+        current_tier_id: invoice.tier_id,
+        subscription_starts_at: subscriptionStartDate.toISOString(),
+        subscription_ends_at: subscriptionEndDate.toISOString(),
+        next_billing_date: subscriptionEndDate.toISOString(),
+        is_payment_overdue: false,
+      };
+
+      if (invoice.restaurant.subscription_status === 'TRIAL') {
+        updateData.trial_ends_at = now.toISOString();
+      }
+
       await supabase
         .from('restaurants')
-        .update({
-          subscription_status: 'ACTIVE',
-          current_tier_id: invoice.tier_id,
-          subscription_starts_at: subscriptionStartDate.toISOString(),
-          subscription_ends_at: subscriptionEndDate.toISOString(),
-          next_billing_date: subscriptionEndDate.toISOString(),
-        })
+        .update(updateData)
         .eq('id', invoice.restaurant_id);
 
-      setMessage({ text: 'Payment approved successfully!', type: 'success' });
+      setMessage({ text: `Payment approved successfully! Business moved to ACTIVE status with ${invoice.tier.name} plan.`, type: 'success' });
       setSelectedInvoice(null);
       await loadInvoices();
     } catch (error) {
@@ -221,7 +230,7 @@ export default function PaymentApproval() {
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Restaurant</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Business</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Plan</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
@@ -284,7 +293,7 @@ export default function PaymentApproval() {
                   {getStatusBadge(selectedInvoice.status)}
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Restaurant</p>
+                  <p className="text-sm text-gray-600">Business</p>
                   <p className="font-semibold text-gray-900">{selectedInvoice.restaurant.name}</p>
                   <p className="text-xs text-gray-500">{selectedInvoice.restaurant.subdomain}.hejo.app</p>
                 </div>
