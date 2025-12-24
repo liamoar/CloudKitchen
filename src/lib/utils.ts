@@ -179,3 +179,34 @@ export function validateSubdomain(subdomain: string): { valid: boolean; message?
 
   return { valid: true };
 }
+
+export function getMainDomainUrl(path: string = ''): string {
+  if (typeof window === 'undefined') return '';
+
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
+  const port = window.location.port;
+
+  // For localhost development
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    const portPart = port ? `:${port}` : '';
+    return `${protocol}//localhost${portPart}${path}`;
+  }
+
+  // Remove subdomain from hostname
+  const currentSubdomain = getSubdomain();
+  let mainHostname = hostname;
+
+  if (currentSubdomain) {
+    // Remove subdomain
+    mainHostname = hostname.substring(currentSubdomain.length + 1);
+  }
+
+  // Remove 'www.' if present
+  if (mainHostname.startsWith('www.')) {
+    mainHostname = mainHostname.substring(4);
+  }
+
+  const portPart = port ? `:${port}` : '';
+  return `${protocol}//${mainHostname}${portPart}${path}`;
+}

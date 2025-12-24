@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShoppingCart as CartIcon, X, Plus, Minus, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useCart } from '../contexts/CartContext';
-import { calculateDeliveryFee, validateMinimumOrder, formatCurrency, getSubdomain, buildSubdomainUrl } from '../lib/utils';
+import { calculateDeliveryFee, validateMinimumOrder, formatCurrency, getSubdomain, buildSubdomainUrl, getMainDomainUrl } from '../lib/utils';
 import type { Product, Bundle, RestaurantSettings, ProductCategory, FeaturedProduct } from '../lib/database.types';
 
 export function CustomerHome() {
@@ -75,18 +75,23 @@ export function CustomerHome() {
   const loadData = async () => {
     try {
       if (!subdomain) {
-        navigate('/');
+        window.location.href = getMainDomainUrl('/');
         return;
       }
 
       const { data: restaurant } = await supabase
         .from('restaurants')
-        .select('id, restaurant_currency, minimum_order_amount, delivery_fee_tiers')
+        .select('id, restaurant_currency, minimum_order_amount, delivery_fee_tiers, domain_status, status')
         .eq('subdomain', subdomain)
         .maybeSingle();
 
       if (!restaurant) {
-        navigate('/');
+        window.location.href = getMainDomainUrl('/');
+        return;
+      }
+
+      if (restaurant.domain_status !== 'active' || restaurant.status === 'SUSPENDED') {
+        window.location.href = getMainDomainUrl('/');
         return;
       }
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Store, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getSubdomain } from '../lib/utils';
+import { getSubdomain, getMainDomainUrl } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 
 export function RestaurantLogin() {
@@ -21,17 +21,28 @@ export function RestaurantLogin() {
 
   const loadBusinessName = async () => {
     const subdomain = getSubdomain();
-    if (!subdomain) return;
+    if (!subdomain) {
+      window.location.href = getMainDomainUrl('/');
+      return;
+    }
 
     const { data: restaurant } = await supabase
       .from('restaurants')
-      .select('name')
+      .select('name, domain_status, status')
       .eq('subdomain', subdomain)
       .maybeSingle();
 
-    if (restaurant) {
-      setBusinessName(restaurant.name);
+    if (!restaurant) {
+      window.location.href = getMainDomainUrl('/');
+      return;
     }
+
+    if (restaurant.domain_status !== 'active' || restaurant.status === 'SUSPENDED') {
+      window.location.href = getMainDomainUrl('/');
+      return;
+    }
+
+    setBusinessName(restaurant.name);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
