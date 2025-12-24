@@ -1,60 +1,61 @@
-import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Eye, Clock, TrendingUp, Calendar } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CheckCircle, XCircle, Eye, Clock, Calendar, DollarSign, AlertTriangle, ExternalLink } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { getCurrencySymbol } from '../../lib/utils';
 
-interface PaymentReceipt {
+interface PaymentInvoice {
   id: string;
   restaurant_id: string;
+  tier_id: string;
+  invoice_number: string;
+  invoice_type: string;
   amount: number;
   currency: string;
-  receipt_image_url: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  transaction_type: 'upgrade' | 'renewal';
-  notes: string;
-  admin_notes: string;
-  submitted_at: string;
-  reviewed_at: string;
-  subscription_tier_id: string;
-  previous_tier_id: string;
+  status: string;
+  payment_receipt_url: string | null;
+  submission_date: string | null;
+  rejection_reason: string | null;
+  due_date: string;
+  billing_period_start: string;
+  billing_period_end: string;
+  created_at: string;
   restaurant: {
-    name: string;
-    slug: string;
-    status: string;
-  };
-  subscription_tier: {
     id: string;
     name: string;
-    monthly_price: number;
+    subdomain: string;
+    country: string;
+    subscription_status: string;
   };
-  previous_tier?: {
+  tier: {
     name: string;
+    monthly_price: number;
   };
 }
 
 export default function PaymentApproval() {
-  const [payments, setPayments] = useState<PaymentReceipt[]>([]);
+  const [invoices, setInvoices] = useState<PaymentInvoice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPayment, setSelectedPayment] = useState<PaymentReceipt | null>(null);
-  const [adminNotes, setAdminNotes] = useState('');
+  const [selectedInvoice, setSelectedInvoice] = useState<PaymentInvoice | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
+  const [filter, setFilter] = useState<'all' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'>('SUBMITTED');
+  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
-    loadPayments();
+    loadInvoices();
   }, [filter]);
 
-  const loadPayments = async () => {
+  const loadInvoices = async () => {
     try {
       setLoading(true);
       let query = supabase
-        .from('payment_receipts')
+        .from('payment_invoices')
         .select(`
           *,
-          restaurant:restaurant_id (name, slug, status),
-          subscription_tier:subscription_tier_id (id, name, monthly_price),
-          previous_tier:previous_tier_id (name)
+          restaurant:restaurants(id, name, subdomain, country, subscription_status),
+          tier:subscription_tiers(name, monthly_price)
         `)
-        .order('submitted_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (filter !== 'all') {
         query = query.eq('status', filter);
@@ -63,388 +64,327 @@ export default function PaymentApproval() {
       const { data, error } = await query;
 
       if (error) throw error;
-      setPayments(data || []);
-    } catch (err) {
-      console.error('Failed to load payments:', err);
+      setInvoices(data as any || []);
+    } catch (error) {
+      console.error('Error loading invoices:', error);
+      setMessage({ text: 'Failed to load invoices', type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApprove = async (payment: PaymentReceipt) => {
-    if (!confirm(`Approve payment of ${payment.currency} ${payment.amount} for ${payment.restaurant.name}?`)) {
-      return;
-    }
+  const handleApprove = async (invoice: PaymentInvoice) => {
+    if (!confirm(`Approve payment for ${invoice.restaurant.name}?`)) return;
 
     setProcessing(true);
+    setMessage(null);
+
     try {
-      // Update payment status
-      const { error: updateError } = await supabase
-        .from('payment_receipts')
+      const subscriptionStartDate = new Date();
+      const subscriptionEndDate = new Date();
+      subscriptionEndDate.setDate(subscriptionEndDate.getDate() + 30);
+
+      await supabase
+        .from('payment_invoices')
         .update({
           status: 'APPROVED',
-          admin_notes: adminNotes,
-          reviewed_at: new Date().toISOString(),
+          review_date: new Date().toISOString(),
         })
-        .eq('id', payment.id);
+        .eq('id', invoice.id);
 
-      if (updateError) throw updateError;
-
-      // Update restaurant subscription
-      const updates: any = {
-        tier_id: payment.subscription_tier_id,
-        status: 'ACTIVE',
-        is_payment_overdue: false,
-        overdue_since: null,
-      };
-
-      // Set subscription end date to 30 days from now
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + 30);
-      updates.subscription_end_date = endDate.toISOString();
-
-      const { error: restaurantError } = await supabase
+      await supabase
         .from('restaurants')
-        .update(updates)
-        .eq('id', payment.restaurant_id);
+        .update({
+          subscription_status: 'ACTIVE',
+          current_tier_id: invoice.tier_id,
+          subscription_starts_at: subscriptionStartDate.toISOString(),
+          subscription_ends_at: subscriptionEndDate.toISOString(),
+          next_billing_date: subscriptionEndDate.toISOString(),
+        })
+        .eq('id', invoice.restaurant_id);
 
-      if (restaurantError) throw restaurantError;
-
-      setSelectedPayment(null);
-      setAdminNotes('');
-      loadPayments();
-      alert('Payment approved successfully!');
-    } catch (err: any) {
-      console.error('Failed to approve payment:', err);
-      alert('Failed to approve payment: ' + err.message);
+      setMessage({ text: 'Payment approved successfully!', type: 'success' });
+      setSelectedInvoice(null);
+      await loadInvoices();
+    } catch (error) {
+      console.error('Error approving payment:', error);
+      setMessage({ text: 'Failed to approve payment', type: 'error' });
     } finally {
       setProcessing(false);
     }
   };
 
-  const handleReject = async (payment: PaymentReceipt) => {
-    if (!adminNotes.trim()) {
-      alert('Please provide a reason for rejection in admin notes');
+  const handleReject = async (invoice: PaymentInvoice) => {
+    if (!rejectionReason.trim()) {
+      setMessage({ text: 'Please provide a rejection reason', type: 'error' });
       return;
     }
 
-    if (!confirm(`Reject payment from ${payment.restaurant.name}?`)) {
-      return;
-    }
+    if (!confirm(`Reject payment for ${invoice.restaurant.name}?`)) return;
 
     setProcessing(true);
+    setMessage(null);
+
     try {
-      const { error } = await supabase
-        .from('payment_receipts')
+      await supabase
+        .from('payment_invoices')
         .update({
           status: 'REJECTED',
-          admin_notes: adminNotes,
-          reviewed_at: new Date().toISOString(),
+          rejection_reason: rejectionReason,
+          review_date: new Date().toISOString(),
         })
-        .eq('id', payment.id);
+        .eq('id', invoice.id);
 
-      if (error) throw error;
-
-      setSelectedPayment(null);
-      setAdminNotes('');
-      loadPayments();
-      alert('Payment rejected');
-    } catch (err: any) {
-      console.error('Failed to reject payment:', err);
-      alert('Failed to reject payment: ' + err.message);
+      setMessage({ text: 'Payment rejected', type: 'success' });
+      setSelectedInvoice(null);
+      setRejectionReason('');
+      await loadInvoices();
+    } catch (error) {
+      console.error('Error rejecting payment:', error);
+      setMessage({ text: 'Failed to reject payment', type: 'error' });
     } finally {
       setProcessing(false);
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PENDING':
-        return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm font-medium">
-            <Clock className="w-4 h-4" />
-            Pending
-          </span>
-        );
-      case 'APPROVED':
-        return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-            <CheckCircle className="w-4 h-4" />
-            Approved
-          </span>
-        );
-      case 'REJECTED':
-        return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium">
-            <XCircle className="w-4 h-4" />
-            Rejected
-          </span>
-        );
-      default:
-        return null;
-    }
+    const badges: Record<string, { bg: string; text: string; icon: any }> = {
+      PENDING: { bg: 'bg-gray-100', text: 'text-gray-700', icon: Clock },
+      SUBMITTED: { bg: 'bg-blue-100', text: 'text-blue-700', icon: Clock },
+      UNDER_REVIEW: { bg: 'bg-yellow-100', text: 'text-yellow-700', icon: AlertTriangle },
+      APPROVED: { bg: 'bg-green-100', text: 'text-green-700', icon: CheckCircle },
+      REJECTED: { bg: 'bg-red-100', text: 'text-red-700', icon: XCircle },
+    };
+    const badge = badges[status] || badges.PENDING;
+    const Icon = badge.icon;
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${badge.bg} ${badge.text}`}>
+        <Icon size={14} />
+        {status.replace('_', ' ')}
+      </span>
+    );
+  };
+
+  const getInvoiceTypeBadge = (type: string) => {
+    const colors: Record<string, string> = {
+      TRIAL_CONVERSION: 'bg-blue-100 text-blue-700',
+      RENEWAL: 'bg-green-100 text-green-700',
+      UPGRADE: 'bg-purple-100 text-purple-700',
+    };
+    return (
+      <span className={`px-2 py-1 rounded text-xs font-medium ${colors[type] || 'bg-gray-100 text-gray-700'}`}>
+        {type.replace('_', ' ')}
+      </span>
+    );
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <div className="text-center py-8">Loading payment submissions...</div>;
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Payment Approvals</h2>
-        <div className="flex gap-2">
-          {(['all', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((status) => (
-            <button
-              key={status}
-              onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filter === status
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {status === 'all' ? 'All' : status}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {payments.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <Clock className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-600">No payments found</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {payments.map((payment) => (
-            <div
-              key={payment.id}
-              className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow"
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-bold">{payment.restaurant.name}</h3>
-                    {getStatusBadge(payment.status)}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 text-sm mb-3">
-                    <div>
-                      <span className="text-gray-600">Amount:</span>
-                      <span className="ml-2 font-semibold text-blue-600">
-                        {payment.currency} {payment.amount}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Type:</span>
-                      <span className="ml-2 font-medium capitalize">
-                        {payment.transaction_type}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Target Plan:</span>
-                      <span className="ml-2 font-medium">
-                        {payment.subscription_tier?.name}
-                      </span>
-                    </div>
-                    {payment.previous_tier && (
-                      <div>
-                        <span className="text-gray-600">From:</span>
-                        <span className="ml-2 font-medium">
-                          {payment.previous_tier.name}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="text-sm text-gray-500">
-                    Submitted: {formatDate(payment.submitted_at)}
-                  </div>
-
-                  {payment.notes && (
-                    <div className="mt-3 p-3 bg-gray-50 rounded text-sm">
-                      <span className="font-medium text-gray-700">Restaurant note: </span>
-                      <span className="text-gray-600">{payment.notes}</span>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => {
-                    setSelectedPayment(payment);
-                    setAdminNotes(payment.admin_notes || '');
-                  }}
-                  className="ml-4 p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                  title="View & Review"
-                >
-                  <Eye className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          ))}
+    <div className="space-y-6">
+      {message && (
+        <div className={`p-4 rounded-lg ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          {message.text}
         </div>
       )}
 
-      {/* Payment Review Modal */}
-      {selectedPayment && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Payment Approvals</h2>
+          <div className="flex gap-2">
+            {(['SUBMITTED', 'APPROVED', 'REJECTED', 'all'] as const).map((status) => (
+              <button
+                key={status}
+                onClick={() => setFilter(status)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  filter === status
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {status === 'all' ? 'All' : status}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {invoices.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <Clock size={48} className="mx-auto mb-4 opacity-50" />
+            <p>No {filter !== 'all' ? filter.toLowerCase() : ''} payment submissions found</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Restaurant</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Plan</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {invoices.map((invoice) => (
+                  <tr key={invoice.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{invoice.invoice_number}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <div>
+                        <p className="font-medium text-gray-900">{invoice.restaurant.name}</p>
+                        <p className="text-xs text-gray-500">{invoice.restaurant.subdomain}.hejo.app</p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">{getInvoiceTypeBadge(invoice.invoice_type)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{invoice.tier.name}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-900">
+                      {getCurrencySymbol(invoice.currency)}{invoice.amount}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {invoice.submission_date ? new Date(invoice.submission_date).toLocaleDateString() : '-'}
+                    </td>
+                    <td className="px-4 py-3">{getStatusBadge(invoice.status)}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => setSelectedInvoice(invoice)}
+                        className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1"
+                      >
+                        <Eye size={16} />
+                        Review
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {selectedInvoice && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b">
+              <h3 className="text-xl font-bold text-gray-900">Payment Review</h3>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold">{selectedPayment.restaurant.name}</h2>
-                  <div className="mt-2">{getStatusBadge(selectedPayment.status)}</div>
+                  <p className="text-sm text-gray-600">Invoice Number</p>
+                  <p className="font-semibold text-gray-900">{selectedInvoice.invoice_number}</p>
                 </div>
-                <button
-                  onClick={() => setSelectedPayment(null)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <XCircle className="w-6 h-6" />
-                </button>
+                <div>
+                  <p className="text-sm text-gray-600">Status</p>
+                  {getStatusBadge(selectedInvoice.status)}
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Restaurant</p>
+                  <p className="font-semibold text-gray-900">{selectedInvoice.restaurant.name}</p>
+                  <p className="text-xs text-gray-500">{selectedInvoice.restaurant.subdomain}.hejo.app</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Type</p>
+                  {getInvoiceTypeBadge(selectedInvoice.invoice_type)}
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Plan</p>
+                  <p className="font-semibold text-gray-900">{selectedInvoice.tier.name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Amount</p>
+                  <p className="text-lg font-bold text-orange-600">
+                    {getCurrencySymbol(selectedInvoice.currency)}{selectedInvoice.amount}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Billing Period</p>
+                  <p className="text-xs text-gray-700">
+                    {new Date(selectedInvoice.billing_period_start).toLocaleDateString()} - {new Date(selectedInvoice.billing_period_end).toLocaleDateString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Submitted</p>
+                  <p className="text-xs text-gray-700">
+                    {selectedInvoice.submission_date ? new Date(selectedInvoice.submission_date).toLocaleString() : 'Not submitted'}
+                  </p>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6 mb-6">
+              {selectedInvoice.payment_receipt_url && (
                 <div>
-                  <h3 className="font-semibold text-gray-700 mb-3">Payment Details</h3>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="text-gray-600">Amount:</span>
-                      <span className="ml-2 font-bold text-lg text-blue-600">
-                        {selectedPayment.currency} {selectedPayment.amount}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Transaction Type:</span>
-                      <span className="ml-2 font-medium capitalize">
-                        {selectedPayment.transaction_type}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Target Tier:</span>
-                      <span className="ml-2 font-medium">
-                        {selectedPayment.subscription_tier?.name}
-                      </span>
-                    </div>
-                    {selectedPayment.previous_tier && (
-                      <div>
-                        <span className="text-gray-600">Previous Tier:</span>
-                        <span className="ml-2 font-medium">
-                          {selectedPayment.previous_tier.name}
-                        </span>
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-gray-600">Submitted:</span>
-                      <span className="ml-2">{formatDate(selectedPayment.submitted_at)}</span>
-                    </div>
-                    {selectedPayment.reviewed_at && (
-                      <div>
-                        <span className="text-gray-600">Reviewed:</span>
-                        <span className="ml-2">{formatDate(selectedPayment.reviewed_at)}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-700 mb-3">Restaurant Info</h3>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="text-gray-600">Slug:</span>
-                      <span className="ml-2 font-mono">{selectedPayment.restaurant.slug}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Current Status:</span>
-                      <span className="ml-2 font-medium">{selectedPayment.restaurant.status}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {selectedPayment.notes && (
-                <div className="mb-4">
-                  <h3 className="font-semibold text-gray-700 mb-2">Restaurant Notes</h3>
-                  <p className="p-3 bg-gray-50 rounded text-sm">{selectedPayment.notes}</p>
+                  <p className="text-sm text-gray-600 mb-2">Payment Receipt</p>
+                  <a
+                    href={selectedInvoice.payment_receipt_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    <ExternalLink size={16} />
+                    View Receipt
+                  </a>
                 </div>
               )}
 
-              <div className="mb-4">
-                <h3 className="font-semibold text-gray-700 mb-2">Payment Proof</h3>
-                <img
-                  src={selectedPayment.receipt_image_url}
-                  alt="Payment proof"
-                  className="w-full rounded-lg border border-gray-200"
-                />
-              </div>
+              {selectedInvoice.rejection_reason && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-red-900 mb-1">Rejection Reason:</p>
+                  <p className="text-sm text-red-700">{selectedInvoice.rejection_reason}</p>
+                </div>
+              )}
 
-              {selectedPayment.status === 'PENDING' && (
-                <>
-                  <div className="mb-6">
-                    <label className="block font-semibold text-gray-700 mb-2">
-                      Admin Notes {selectedPayment.status === 'PENDING' && '(Required for rejection)'}
+              {selectedInvoice.status === 'SUBMITTED' && (
+                <div className="space-y-4 pt-4 border-t">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Rejection Reason (if rejecting)
                     </label>
                     <textarea
-                      value={adminNotes}
-                      onChange={(e) => setAdminNotes(e.target.value)}
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
                       rows={3}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Add notes about this payment review..."
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      placeholder="Provide a reason if rejecting..."
                     />
                   </div>
 
                   <div className="flex gap-3">
                     <button
-                      onClick={() => handleReject(selectedPayment)}
+                      onClick={() => handleApprove(selectedInvoice)}
                       disabled={processing}
-                      className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-                    >
-                      <XCircle size={20} />
-                      {processing ? 'Processing...' : 'Reject Payment'}
-                    </button>
-                    <button
-                      onClick={() => handleApprove(selectedPayment)}
-                      disabled={processing}
-                      className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                      className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white rounded-lg font-semibold"
                     >
                       <CheckCircle size={20} />
                       {processing ? 'Processing...' : 'Approve Payment'}
                     </button>
+                    <button
+                      onClick={() => handleReject(selectedInvoice)}
+                      disabled={processing || !rejectionReason.trim()}
+                      className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white rounded-lg font-semibold"
+                    >
+                      <XCircle size={20} />
+                      {processing ? 'Processing...' : 'Reject Payment'}
+                    </button>
                   </div>
-                </>
-              )}
-
-              {selectedPayment.status !== 'PENDING' && selectedPayment.admin_notes && (
-                <div className="mb-4">
-                  <h3 className="font-semibold text-gray-700 mb-2">Admin Notes</h3>
-                  <p className="p-3 bg-blue-50 rounded text-sm text-blue-700">
-                    {selectedPayment.admin_notes}
-                  </p>
                 </div>
               )}
+            </div>
 
-              {selectedPayment.status !== 'PENDING' && (
-                <button
-                  onClick={() => setSelectedPayment(null)}
-                  className="w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  Close
-                </button>
-              )}
+            <div className="p-6 border-t bg-gray-50">
+              <button
+                onClick={() => {
+                  setSelectedInvoice(null);
+                  setRejectionReason('');
+                }}
+                className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-semibold"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
