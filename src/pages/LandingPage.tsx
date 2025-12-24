@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Package, TrendingUp, Shield, Zap, Globe, CheckCircle, Truck, BarChart, Clock, Users, CreditCard } from 'lucide-react';
+import {
+  Zap, Package, TrendingUp, Shield, Globe, CheckCircle,
+  Truck, BarChart, Clock, Users, CreditCard, ShoppingCart,
+  MapPin, Bell, Smartphone, Target, ArrowRight, Star,
+  Layout, Settings, Eye, MessageSquare
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { validateSubdomain, buildSubdomainUrl } from '../lib/utils';
 
@@ -56,10 +61,6 @@ export function LandingPage() {
   const getCurrencySymbol = (country: string) => {
     switch (country) {
       case 'AE': return 'AED';
-      case 'US': return 'USD';
-      case 'GB': return 'GBP';
-      case 'EU': return 'EUR';
-      case 'IN': return 'INR';
       case 'NP': return 'NPR';
       default: return 'USD';
     }
@@ -216,64 +217,113 @@ export function LandingPage() {
     }
   };
 
+  const countryOptions = [
+    { code: 'AE', name: 'UAE', currency: 'AED' },
+    { code: 'NP', name: 'Nepal', currency: 'NPR' }
+  ];
+
   const features = [
     {
-      icon: Store,
-      title: 'Multi-Business Support',
-      description: 'Perfect for restaurants, cafes, retail stores, and e-commerce businesses'
+      icon: ShoppingCart,
+      title: 'Beautiful Online Storefront',
+      description: 'Professional-looking store with your custom domain. No design skills needed.',
+      image: 'storefront'
     },
     {
       icon: Package,
-      title: 'Product Management',
-      description: 'Easily manage your inventory with categories, pricing, and stock tracking'
+      title: 'Smart Product Management',
+      description: 'Add products, set prices, manage inventory. Organize with categories and bundles.',
+      image: 'products'
     },
     {
-      icon: Truck,
-      title: 'Delivery Management',
-      description: 'Built-in rider management and real-time order tracking for customers'
-    },
-    {
-      icon: BarChart,
-      title: 'Sales Analytics',
-      description: 'Track revenue, orders, and performance with detailed analytics'
-    },
-    {
-      icon: Clock,
-      title: 'Real-time Updates',
-      description: 'Live order notifications and status updates for seamless operations'
+      icon: Bell,
+      title: 'Real-time Order Management',
+      description: 'Live order notifications. Update status instantly. Track every order from placement to delivery.',
+      image: 'orders'
     },
     {
       icon: Users,
-      title: 'Customer Experience',
-      description: 'Beautiful storefront with order tracking and multiple payment options'
+      title: 'Customer Insights',
+      description: 'Know your customers. Track order history, identify VIPs, and build relationships.',
+      image: 'customers'
+    },
+    {
+      icon: Truck,
+      title: 'Delivery Rider Management',
+      description: 'Manage your delivery team. Assign orders. Track deliveries in real-time.',
+      image: 'riders'
+    },
+    {
+      icon: Eye,
+      title: 'Customer Order Tracking',
+      description: 'Customers get unique tracking links. They see real-time order status updates.',
+      image: 'tracking'
+    },
+    {
+      icon: BarChart,
+      title: 'Sales Analytics Dashboard',
+      description: 'Track revenue, top products, order trends. Make data-driven decisions.',
+      image: 'analytics'
+    },
+    {
+      icon: CreditCard,
+      title: 'Flexible Payment Options',
+      description: 'Support Cash on Delivery and Bank Transfer. Confirm payments easily.',
+      image: 'payments'
     }
   ];
 
-  const countryOptions = [
-    { code: 'AE', name: 'UAE', currency: 'AED' },
-    { code: 'NP', name: 'Nepal', currency: 'NPR' },
-    { code: 'IN', name: 'India', currency: 'INR' },
-    { code: 'US', name: 'USA', currency: 'USD' },
-    { code: 'GB', name: 'UK', currency: 'GBP' },
-    { code: 'EU', name: 'Europe', currency: 'EUR' }
+  const benefits = [
+    {
+      icon: Zap,
+      title: '2-3 Minutes Setup',
+      description: 'No lengthy forms. No paperwork. Just basic info and you\'re live.'
+    },
+    {
+      icon: Globe,
+      title: 'Custom Domain Included',
+      description: 'Your business gets its own professional URL: yourbusiness.hejo.app'
+    },
+    {
+      icon: Shield,
+      title: 'No Business Registration Required',
+      description: 'Start immediately. Perfect for individuals and small businesses starting out.'
+    },
+    {
+      icon: TrendingUp,
+      title: 'No Hidden Charges',
+      description: 'Transparent pricing. What you see is what you pay. No surprises.'
+    },
+    {
+      icon: Clock,
+      title: 'Launch in Minutes',
+      description: 'Add products, configure settings, and go live. It\'s that simple.'
+    },
+    {
+      icon: Target,
+      title: 'Production Ready',
+      description: 'Built for real businesses. Handle real orders from day one.'
+    }
   ];
 
   if (showSignup) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-        <nav className="bg-white shadow-sm sticky top-0 z-10">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <nav className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-10 border-b border-blue-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center gap-2">
-              <Store className="text-emerald-600" size={32} />
-              <span className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">hejo.app</span>
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+                <Zap className="text-white" size={20} />
+              </div>
+              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">hejo.app</span>
             </div>
           </div>
         </nav>
 
         <div className="max-w-2xl mx-auto px-4 py-12">
-          <div className="bg-white rounded-xl shadow-xl p-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Start Your Business Online</h2>
-            <p className="text-gray-600 mb-6">Join hundreds of businesses already using hejo.app</p>
+          <div className="bg-white rounded-2xl shadow-2xl p-8 border border-blue-100">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">Launch Your Business Online</h2>
+            <p className="text-gray-600 mb-6">Complete the form below and go live in 2 minutes</p>
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg mb-4 text-sm">
@@ -291,7 +341,7 @@ export function LandingPage() {
                   required
                   value={formData.businessName}
                   onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Your Business Name"
                 />
               </div>
@@ -300,7 +350,7 @@ export function LandingPage() {
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Your Business URL
                 </label>
-                <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-transparent">
+                <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent">
                   <input
                     type="text"
                     required
@@ -328,9 +378,6 @@ export function LandingPage() {
                     Available! Your store will be at: {formData.subdomain}.hejo.app
                   </p>
                 )}
-                <p className="text-xs text-gray-500 mt-1">
-                  Choose a unique subdomain for your business (3-63 characters, lowercase letters, numbers, and hyphens only)
-                </p>
               </div>
 
               <div>
@@ -342,7 +389,7 @@ export function LandingPage() {
                   required
                   value={formData.ownerName}
                   onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Your Full Name"
                 />
               </div>
@@ -357,7 +404,7 @@ export function LandingPage() {
                     required
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="+123456789"
                   />
                 </div>
@@ -371,7 +418,7 @@ export function LandingPage() {
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="you@example.com"
                   />
                 </div>
@@ -388,7 +435,7 @@ export function LandingPage() {
                       setFormData({ ...formData, country: e.target.value });
                       setSelectedCountry(e.target.value);
                     }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     {countryOptions.map(opt => (
                       <option key={opt.code} value={opt.code}>{opt.name} ({opt.currency})</option>
@@ -405,24 +452,10 @@ export function LandingPage() {
                     required
                     value={formData.city}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Your City"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Subscription Tier
-                </label>
-                <select
-                  value={formData.tier}
-                  onChange={(e) => setFormData({ ...formData, tier: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                >
-                  <option value="Basic">Basic Tier</option>
-                  <option value="Premium">Premium Tier</option>
-                </select>
               </div>
 
               <div>
@@ -435,7 +468,7 @@ export function LandingPage() {
                   minLength={6}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Min. 6 characters"
                 />
               </div>
@@ -443,9 +476,9 @@ export function LandingPage() {
               <button
                 type="submit"
                 disabled={loading || !!subdomainError || checkingSubdomain || formData.subdomain.length < 3}
-                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-4 rounded-lg font-semibold text-lg transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white py-4 rounded-lg font-semibold text-lg transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Creating Account...' : 'Start Free Trial'}
+                {loading ? 'Creating Your Business...' : 'Launch My Business'}
               </button>
 
               <button
@@ -463,26 +496,28 @@ export function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <nav className="bg-white shadow-sm sticky top-0 z-10">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <nav className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-10 border-b border-blue-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <Store className="text-emerald-600" size={32} />
-              <span className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">hejo.app</span>
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+                <Zap className="text-white" size={20} />
+              </div>
+              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">hejo.app</span>
             </div>
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate('/backend-system')}
-                className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+                onClick={() => navigate('/business-login')}
+                className="text-sm text-gray-600 hover:text-gray-900 font-medium hidden sm:block"
               >
-                Admin Portal
+                Business Login
               </button>
               <button
                 onClick={() => setShowSignup(true)}
-                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-6 py-2 rounded-lg font-semibold text-sm transition-all shadow-md"
+                className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white px-6 py-2 rounded-lg font-semibold text-sm transition-all shadow-md"
               >
-                Get Started
+                Get Started Free
               </button>
             </div>
           </div>
@@ -492,66 +527,162 @@ export function LandingPage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center max-w-4xl mx-auto">
           <div className="inline-block mb-6">
-            <span className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-full text-sm font-semibold">
-              All-in-One Business Management Platform
+            <span className="bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-semibold border border-blue-200">
+              No Business License • No Paperwork • No Hidden Fees
             </span>
           </div>
-          <h1 className="text-6xl font-bold text-gray-900 mb-6 leading-tight">
-            Grow Your Business<br />
-            <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-              Online in Minutes
+          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+            Launch Your Store<br />
+            <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              In 2-3 Minutes
             </span>
           </h1>
           <p className="text-xl text-gray-600 mb-10 max-w-3xl mx-auto leading-relaxed">
-            Complete solution for restaurants, cafes, retail stores, and e-commerce businesses.
-            Manage orders, inventory, delivery riders, and track everything in real-time.
+            Complete business management system for restaurants, cafes, retail stores.
+            <strong className="text-gray-900"> No registration hassles. No payment upfront. No complexity.</strong><br />
+            Just sign up and start selling with your own custom domain.
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
             <button
               onClick={() => setShowSignup(true)}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
             >
-              Start Free Trial
+              Start Free - No Credit Card
+              <ArrowRight size={20} />
             </button>
-            <a
-              href="#pricing"
-              className="bg-white hover:bg-gray-50 text-gray-900 px-8 py-4 rounded-lg text-lg font-semibold transition-all shadow-md border-2 border-gray-200"
-            >
-              View Pricing
-            </a>
           </div>
-          <p className="text-sm text-gray-500 mt-6">
-            <CheckCircle className="inline w-4 h-4 text-emerald-600" /> 15-day free trial • No credit card required • Cancel anytime
-          </p>
+          <div className="flex items-center justify-center gap-6 mt-8 text-sm text-gray-600">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="text-green-600" size={18} />
+              <span>15-day free trial</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="text-green-600" size={18} />
+              <span>Setup in 2-3 minutes</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="text-green-600" size={18} />
+              <span>Cancel anytime</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {features.map((feature, index) => (
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+            Why Businesses Choose hejo.app
+          </h2>
+          <p className="text-lg text-gray-600">Perfect for those starting out without the bureaucracy</p>
+        </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+          {benefits.map((benefit, index) => (
             <div
               key={index}
-              className="bg-white rounded-xl p-8 shadow-md hover:shadow-xl transition-all border border-gray-100 hover:border-emerald-200 transform hover:-translate-y-1"
+              className="bg-white rounded-xl p-6 shadow-md hover:shadow-xl transition-all border border-blue-100 hover:border-blue-300"
             >
-              <div className="bg-gradient-to-br from-emerald-100 to-teal-100 w-14 h-14 rounded-lg flex items-center justify-center mb-5">
-                <feature.icon className="text-emerald-600" size={28} />
+              <div className="bg-gradient-to-br from-blue-100 to-indigo-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                <benefit.icon className="text-blue-600" size={24} />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">
-                {feature.title}
+              <h3 className="text-lg font-bold text-gray-900 mb-2">
+                {benefit.title}
               </h3>
-              <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+              <p className="text-gray-600 text-sm leading-relaxed">{benefit.description}</p>
             </div>
           ))}
         </div>
       </section>
 
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+            Everything You Need to Run Your Business
+          </h2>
+          <p className="text-lg text-gray-600">Powerful features that work together seamlessly</p>
+        </div>
+
+        <div className="space-y-24">
+          {features.map((feature, index) => (
+            <div
+              key={index}
+              className={`flex flex-col ${index % 2 === 0 ? 'lg:flex-row' : 'lg:flex-row-reverse'} gap-12 items-center`}
+            >
+              <div className="flex-1">
+                <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold mb-4 border border-blue-200">
+                  <feature.icon size={16} />
+                  Feature #{index + 1}
+                </div>
+                <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
+                  {feature.title}
+                </h3>
+                <p className="text-lg text-gray-600 leading-relaxed mb-6">
+                  {feature.description}
+                </p>
+                <button
+                  onClick={() => setShowSignup(true)}
+                  className="text-blue-600 font-semibold hover:text-blue-700 flex items-center gap-2"
+                >
+                  Get started with this feature
+                  <ArrowRight size={18} />
+                </button>
+              </div>
+              <div className="flex-1 w-full">
+                <div className="bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl p-8 border-2 border-blue-200 shadow-xl min-h-[300px] flex items-center justify-center">
+                  <div className="text-center">
+                    <feature.icon className="text-blue-600 mx-auto mb-4" size={64} />
+                    <p className="text-gray-600 font-medium">{feature.title}</p>
+                    <p className="text-sm text-gray-500 mt-2">Live system feature preview</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl p-12 text-white text-center shadow-2xl">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Perfect for Small Businesses</h2>
+          <p className="text-xl mb-8 opacity-90 max-w-2xl mx-auto">
+            Whether you're a restaurant, cafe, bakery, grocery store, or retail shop -
+            if you want a proper system without the hassle, hejo.app is for you.
+          </p>
+          <div className="grid md:grid-cols-4 gap-6 max-w-4xl mx-auto mb-8">
+            <div className="text-center">
+              <div className="text-3xl font-bold mb-1">2-3 min</div>
+              <div className="text-sm opacity-90">Setup Time</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold mb-1">$0</div>
+              <div className="text-sm opacity-90">Upfront Cost</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold mb-1">0</div>
+              <div className="text-sm opacity-90">Hidden Fees</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold mb-1">100%</div>
+              <div className="text-sm opacity-90">Hassle-Free</div>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowSignup(true)}
+            className="bg-white text-blue-600 hover:bg-gray-100 px-10 py-4 rounded-lg text-lg font-semibold transition-all shadow-xl inline-flex items-center gap-2"
+          >
+            Launch Your Business Now
+            <ArrowRight size={20} />
+          </button>
+        </div>
+      </section>
+
       <section id="pricing" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h2>
-          <p className="text-xl text-gray-600 mb-8">Choose the plan that fits your business needs</p>
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h2>
+          <p className="text-lg text-gray-600 mb-8">No hidden charges. Pay only for what you use.</p>
 
-          <div className="inline-flex items-center gap-3 bg-white px-4 py-2 rounded-lg shadow-md">
-            <Globe size={20} className="text-emerald-600" />
+          <div className="inline-flex items-center gap-3 bg-white px-4 py-2 rounded-lg shadow-md border border-blue-100">
+            <Globe size={20} className="text-blue-600" />
             <select
               value={selectedCountry}
               onChange={(e) => setSelectedCountry(e.target.value)}
@@ -565,18 +696,18 @@ export function LandingPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-          {tiers.map((tier, index) => (
+          {tiers.map((tier) => (
             <div
               key={tier.id}
-              className={`bg-white rounded-2xl p-8 shadow-lg border-2 ${
+              className={`bg-white rounded-2xl p-8 shadow-xl border-2 ${
                 tier.name === 'Premium'
-                  ? 'border-emerald-500 relative transform scale-105'
+                  ? 'border-blue-500 relative transform scale-105'
                   : 'border-gray-200'
               }`}
             >
               {tier.name === 'Premium' && (
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                  <span className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-1 rounded-full text-sm font-semibold shadow-md">
+                  <span className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-1 rounded-full text-sm font-semibold shadow-md">
                     Most Popular
                   </span>
                 </div>
@@ -593,44 +724,54 @@ export function LandingPage() {
 
               <ul className="space-y-4 mb-8">
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="text-emerald-600 flex-shrink-0 mt-0.5" size={20} />
+                  <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
                   <span className="text-gray-700">
                     <strong>{tier.product_limit === -1 ? 'Unlimited' : tier.product_limit}</strong> Products
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="text-emerald-600 flex-shrink-0 mt-0.5" size={20} />
+                  <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
                   <span className="text-gray-700">
                     <strong>{tier.order_limit_per_month === -1 ? 'Unlimited' : tier.order_limit_per_month}</strong> Orders per month
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="text-emerald-600 flex-shrink-0 mt-0.5" size={20} />
+                  <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
                   <span className="text-gray-700">
                     <strong>{tier.storage_limit_mb >= 1024 ? `${tier.storage_limit_mb / 1024}GB` : `${tier.storage_limit_mb}MB`}</strong> Storage
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="text-emerald-600 flex-shrink-0 mt-0.5" size={20} />
+                  <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+                  <span className="text-gray-700">Custom subdomain</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
                   <span className="text-gray-700">Delivery rider management</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="text-emerald-600 flex-shrink-0 mt-0.5" size={20} />
+                  <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
                   <span className="text-gray-700">Real-time order tracking</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="text-emerald-600 flex-shrink-0 mt-0.5" size={20} />
-                  <span className="text-gray-700">Sales analytics & reports</span>
+                  <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+                  <span className="text-gray-700">Customer management</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="text-emerald-600 flex-shrink-0 mt-0.5" size={20} />
-                  <span className="text-gray-700">Multi-currency support</span>
+                  <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+                  <span className="text-gray-700">Sales analytics & reports</span>
                 </li>
                 {tier.name === 'Premium' && (
-                  <li className="flex items-start gap-3">
-                    <CheckCircle className="text-emerald-600 flex-shrink-0 mt-0.5" size={20} />
-                    <span className="text-gray-700">Priority support</span>
-                  </li>
+                  <>
+                    <li className="flex items-start gap-3">
+                      <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+                      <span className="text-gray-700">Priority support</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <Star className="text-yellow-500 flex-shrink-0 mt-0.5" size={20} />
+                      <span className="text-gray-700 font-semibold">Unlimited everything</span>
+                    </li>
+                  </>
                 )}
               </ul>
 
@@ -641,7 +782,7 @@ export function LandingPage() {
                 }}
                 className={`w-full py-4 rounded-lg font-semibold text-lg transition-all shadow-md hover:shadow-lg ${
                   tier.name === 'Premium'
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white'
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white'
                     : 'bg-gray-900 hover:bg-gray-800 text-white'
                 }`}
               >
@@ -651,31 +792,18 @@ export function LandingPage() {
           ))}
         </div>
 
-        <p className="text-center text-gray-600 mt-8">
-          All plans include a 15-day free trial. No credit card required.
+        <p className="text-center text-gray-600 mt-12 text-lg">
+          <strong>15-day free trial</strong> on all plans. No credit card required. Cancel anytime.
         </p>
-      </section>
-
-      <section className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl font-bold mb-6">Ready to Transform Your Business?</h2>
-          <p className="text-xl mb-10 opacity-90">
-            Join hundreds of businesses managing orders, inventory, and deliveries with hejo.app
-          </p>
-          <button
-            onClick={() => setShowSignup(true)}
-            className="bg-white text-emerald-600 hover:bg-gray-50 px-10 py-4 rounded-lg text-lg font-semibold transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-0.5"
-          >
-            Start Your Free Trial
-          </button>
-        </div>
       </section>
 
       <footer className="bg-gray-900 text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center gap-2 mb-4 md:mb-0">
-              <Store size={24} />
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+                <Zap className="text-white" size={20} />
+              </div>
               <span className="text-xl font-bold">hejo.app</span>
             </div>
             <p className="text-gray-400 text-sm">
