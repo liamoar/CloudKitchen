@@ -3,25 +3,34 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../lib/utils';
-import { Building2, DollarSign, Clock, CheckCircle, XCircle, Settings, LogOut } from 'lucide-react';
+import { Building2, DollarSign, Clock, CheckCircle, XCircle, Settings, LogOut, Trash2, Ban, Package, ShoppingCart } from 'lucide-react';
 import PaymentApproval from '../components/superadmin/PaymentApproval';
 
 interface Restaurant {
   id: string;
   name: string;
   slug: string;
+  subdomain: string;
   currency: string;
   country: string;
   status: string;
+  domain_status: string;
   trial_end_date: string | null;
   subscription_end_date: string | null;
   is_payment_overdue: boolean;
   created_at: string;
+  current_month_orders: number;
+  current_product_count: number;
   owner: {
     name: string;
     email: string;
     phone: string;
   };
+  tier: {
+    name: string;
+    order_limit_per_month: number;
+    product_limit: number;
+  } | null;
 }
 
 interface SubscriptionConfig {
@@ -31,6 +40,17 @@ interface SubscriptionConfig {
   monthly_price: number;
   trial_days: number;
   overdue_grace_days: number;
+}
+
+interface SubscriptionTier {
+  id: string;
+  name: string;
+  country: string;
+  monthly_price: number;
+  product_limit: number;
+  order_limit_per_month: number;
+  storage_limit_mb: number;
+  is_active: boolean;
 }
 
 interface SalesStats {
@@ -48,9 +68,10 @@ interface SalesStats {
 export function SuperAdminDashboard() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'config'>('restaurants');
+  const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'config' | 'tiers'>('restaurants');
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [configs, setConfigs] = useState<SubscriptionConfig[]>([]);
+  const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [salesStats, setSalesStats] = useState<SalesStats>({
     platformRevenueByCurrency: [],
     monthlyRevenueByCurrency: [],
@@ -76,10 +97,38 @@ export function SuperAdminDashboard() {
           .from('restaurants')
           .select(`
             *,
-            owner:users!restaurants_owner_id_fkey(name, email, phone)
+            owner:users!restaurants_owner_id_fkey(name, email, phone),
+            tier:subscription_tiers!restaurants_tier_id_fkey(name, order_limit_per_month, product_limit)
           `)
           .order('created_at', { ascending: false });
-        setRestaurants(data || []);
+
+        const restaurantsWithCounts = await Promise.all(
+          (data || []).map(async (restaurant) => {
+            const now = new Date();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+            const [ordersData, productsData] = await Promise.all([
+              supabase
+                .from('orders')
+                .select('id', { count: 'exact' })
+                .eq('restaurant_id', restaurant.id)
+                .gte('created_at', startOfMonth.toISOString())
+                .neq('status', 'CANCELLED'),
+              supabase
+                .from('products')
+                .select('id', { count: 'exact' })
+                .eq('restaurant_id', restaurant.id)
+            ]);
+
+            return {
+              ...restaurant,
+              current_month_orders: ordersData.count || 0,
+              current_product_count: productsData.count || 0
+            };
+          })
+        );
+
+        setRestaurants(restaurantsWithCounts);
       } else if (activeTab === 'payments') {
         // Payment approval is handled by the PaymentApproval component
         setLoading(false);
@@ -149,6 +198,12 @@ export function SuperAdminDashboard() {
           .select('*')
           .order('country');
         setConfigs(data || []);
+      } else if (activeTab === 'tiers') {
+        const { data } = await supabase
+          .from('subscription_tiers')
+          .select('*')
+          .order('country, name');
+        setTiers(data || []);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -166,6 +221,104 @@ export function SuperAdminDashboard() {
       loadData();
     } catch (error) {
       console.error('Error updating config:', error);
+    }
+  };
+
+  const updateTier = async (tierId: string, field: string, value: number) => {
+    try {
+      await supabase
+        .from('subscription_tiers')
+        .update({ [field]: value })
+        .eq('id', tierId);
+      loadData();
+    } catch (error) {
+      console.error('Error updating tier:', error);
+    }
+  };
+
+  const deactivateBusiness = async (restaurantId: string) => {
+    if (!confirm('Are you sure you want to deactivate this business? They will not be able to operate until reactivated.')) {
+      return;
+    }
+
+    try {
+      await supabase
+        .from('restaurants')
+        .update({ domain_status: 'suspended', status: 'SUSPENDED' })
+        .eq('id', restaurantId);
+      loadData();
+    } catch (error) {
+      console.error('Error deactivating business:', error);
+    }
+  };
+
+  const deleteBusiness = async (restaurantId: string) => {
+    if (!confirm('Are you sure you want to DELETE this business? This will permanently remove all data including orders, products, and settings. This action cannot be undone!')) {
+      return;
+    }
+
+    const confirmDelete = prompt('Type "DELETE" to confirm permanent deletion:');
+    if (confirmDelete !== 'DELETE') {
+      alert('Deletion cancelled.');
+      return;
+    }
+
+    try {
+      await supabase
+        .from('orders')
+        .delete()
+        .eq('restaurant_id', restaurantId);
+
+      await supabase
+        .from('products')
+        .delete()
+        .eq('restaurant_id', restaurantId);
+
+      await supabase
+        .from('product_categories')
+        .delete()
+        .eq('restaurant_id', restaurantId);
+
+      await supabase
+        .from('bundles')
+        .delete()
+        .eq('restaurant_id', restaurantId);
+
+      await supabase
+        .from('offers')
+        .delete()
+        .eq('restaurant_id', restaurantId);
+
+      await supabase
+        .from('featured_products')
+        .delete()
+        .eq('restaurant_id', restaurantId);
+
+      await supabase
+        .from('restaurant_settings')
+        .delete()
+        .eq('restaurant_id', restaurantId);
+
+      await supabase
+        .from('delivery_riders')
+        .delete()
+        .eq('restaurant_id', restaurantId);
+
+      await supabase
+        .from('payment_receipts')
+        .delete()
+        .eq('restaurant_id', restaurantId);
+
+      await supabase
+        .from('restaurants')
+        .delete()
+        .eq('id', restaurantId);
+
+      loadData();
+      alert('Business deleted successfully');
+    } catch (error) {
+      console.error('Error deleting business:', error);
+      alert('Error deleting business. Please try again.');
     }
   };
 
@@ -218,7 +371,7 @@ export function SuperAdminDashboard() {
             }`}
           >
             <Building2 size={20} />
-            Restaurants
+            Businesses
           </button>
           <button
             onClick={() => setActiveTab('sales')}
@@ -241,6 +394,17 @@ export function SuperAdminDashboard() {
           >
             <DollarSign size={20} />
             Payments
+          </button>
+          <button
+            onClick={() => setActiveTab('tiers')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
+              activeTab === 'tiers'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Package size={20} />
+            Subscription Tiers
           </button>
           <button
             onClick={() => setActiveTab('config')}
@@ -268,13 +432,13 @@ export function SuperAdminDashboard() {
                     <thead className="bg-gray-50 border-b">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                          Restaurant
+                          Business
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                           Owner
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                          Email
+                          Tier / Usage
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                           Status
@@ -283,10 +447,10 @@ export function SuperAdminDashboard() {
                           Days Left
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                          Currency
+                          Business URL
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                          URL
+                          Actions
                         </th>
                       </tr>
                     </thead>
@@ -297,18 +461,33 @@ export function SuperAdminDashboard() {
                             ? restaurant.trial_end_date
                             : restaurant.subscription_end_date
                         );
+                        const orderLimit = restaurant.tier?.order_limit_per_month || 0;
+                        const productLimit = restaurant.tier?.product_limit || 0;
+                        const orderUsage = orderLimit === -1 ? 'Unlimited' : `${restaurant.current_month_orders}/${orderLimit}`;
+                        const productUsage = productLimit === -1 ? 'Unlimited' : `${restaurant.current_product_count}/${productLimit}`;
+
                         return (
                           <tr key={restaurant.id}>
                             <td className="px-6 py-4">
                               <div className="font-medium text-gray-900">{restaurant.name}</div>
-                              <div className="text-sm text-gray-500">{restaurant.slug}</div>
+                              <div className="text-xs text-gray-500">{restaurant.country}</div>
                             </td>
                             <td className="px-6 py-4">
                               <div className="text-sm text-gray-900">{restaurant.owner?.name}</div>
                               <div className="text-xs text-gray-500">{restaurant.owner?.phone}</div>
                             </td>
                             <td className="px-6 py-4">
-                              <div className="text-sm text-gray-700">{restaurant.owner?.email}</div>
+                              <div className="text-sm font-medium text-gray-900">{restaurant.tier?.name || 'No Tier'}</div>
+                              <div className="flex items-center gap-2 text-xs text-gray-600 mt-1">
+                                <div className="flex items-center gap-1">
+                                  <ShoppingCart size={12} />
+                                  <span>{orderUsage}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Package size={12} />
+                                  <span>{productUsage}</span>
+                                </div>
+                              </div>
                             </td>
                             <td className="px-6 py-4">
                               <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(restaurant.status)}`}>
@@ -322,18 +501,37 @@ export function SuperAdminDashboard() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-6 py-4 text-sm text-gray-700">
-                              {restaurant.currency}
+                            <td className="px-6 py-4">
+                              {restaurant.subdomain ? (
+                                <a
+                                  href={`https://${restaurant.subdomain}.yourdomain.com`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-600 hover:text-blue-800"
+                                >
+                                  {restaurant.subdomain}.yourdomain.com
+                                </a>
+                              ) : (
+                                <span className="text-sm text-gray-500">No subdomain</span>
+                              )}
                             </td>
                             <td className="px-6 py-4">
-                              <a
-                                href={`/${restaurant.slug}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-blue-600 hover:text-blue-800"
-                              >
-                                View
-                              </a>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => deactivateBusiness(restaurant.id)}
+                                  className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                  title="Deactivate Business"
+                                >
+                                  <Ban size={16} />
+                                </button>
+                                <button
+                                  onClick={() => deleteBusiness(restaurant.id)}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Delete Business"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -510,8 +708,116 @@ export function SuperAdminDashboard() {
               </div>
             )}
 
+            {activeTab === 'tiers' && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">Subscription Tiers Management</h2>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Configure subscription tiers for each country. Set order limits, product limits, and pricing.
+                    Use -1 for unlimited access.
+                  </p>
+
+                  <div className="space-y-8">
+                    {['AE', 'NP'].map((country) => {
+                      const countryTiers = tiers.filter(t => t.country === country);
+                      return (
+                        <div key={country} className="border rounded-lg p-6">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                            {country === 'AE' ? 'United Arab Emirates (UAE)' : 'Nepal'}
+                          </h3>
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead className="bg-gray-50 border-b">
+                                <tr>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monthly Price</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Limit/Month</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product Limit</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Storage (MB)</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y">
+                                {countryTiers.map((tier) => (
+                                  <tr key={tier.id}>
+                                    <td className="px-4 py-4 font-medium text-gray-900">{tier.name}</td>
+                                    <td className="px-4 py-4">
+                                      <input
+                                        type="number"
+                                        value={tier.monthly_price}
+                                        onChange={(e) => updateTier(tier.id, 'monthly_price', Number(e.target.value))}
+                                        className="w-24 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
+                                      />
+                                    </td>
+                                    <td className="px-4 py-4">
+                                      <input
+                                        type="number"
+                                        value={tier.order_limit_per_month}
+                                        onChange={(e) => updateTier(tier.id, 'order_limit_per_month', Number(e.target.value))}
+                                        className="w-24 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
+                                        placeholder="-1 = unlimited"
+                                      />
+                                      {tier.order_limit_per_month === -1 && (
+                                        <span className="text-xs text-green-600 ml-2">Unlimited</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4">
+                                      <input
+                                        type="number"
+                                        value={tier.product_limit}
+                                        onChange={(e) => updateTier(tier.id, 'product_limit', Number(e.target.value))}
+                                        className="w-24 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
+                                        placeholder="-1 = unlimited"
+                                      />
+                                      {tier.product_limit === -1 && (
+                                        <span className="text-xs text-green-600 ml-2">Unlimited</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4">
+                                      <input
+                                        type="number"
+                                        value={tier.storage_limit_mb}
+                                        onChange={(e) => updateTier(tier.id, 'storage_limit_mb', Number(e.target.value))}
+                                        className="w-24 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
+                                      />
+                                    </td>
+                                    <td className="px-4 py-4">
+                                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                        tier.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {tier.is_active ? 'Active' : 'Inactive'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                    <h4 className="text-sm font-semibold text-blue-900 mb-2">Important Notes:</h4>
+                    <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                      <li>Use -1 to indicate unlimited orders or products</li>
+                      <li>Basic tier limits: 40 orders per month by default</li>
+                      <li>Premium tier: Typically unlimited (-1) for orders and products</li>
+                      <li>Changes apply immediately to all businesses in that country/tier</li>
+                      <li>Businesses are assigned tiers based on their country</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'config' && (
               <div className="bg-white rounded-lg shadow">
+                <div className="p-6 border-b">
+                  <h2 className="text-xl font-bold text-gray-900">General Configuration</h2>
+                  <p className="text-sm text-gray-600 mt-1">Configure trial periods and grace days for each country</p>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b">
@@ -547,7 +853,7 @@ export function SuperAdminDashboard() {
                               type="number"
                               value={config.monthly_price}
                               onChange={(e) => updateConfig(config.id, 'monthly_price', Number(e.target.value))}
-                              className="w-24 px-2 py-1 border rounded"
+                              className="w-24 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
                             />
                           </td>
                           <td className="px-6 py-4">
@@ -555,7 +861,7 @@ export function SuperAdminDashboard() {
                               type="number"
                               value={config.trial_days}
                               onChange={(e) => updateConfig(config.id, 'trial_days', Number(e.target.value))}
-                              className="w-20 px-2 py-1 border rounded"
+                              className="w-20 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
                             />
                           </td>
                           <td className="px-6 py-4">
@@ -563,7 +869,7 @@ export function SuperAdminDashboard() {
                               type="number"
                               value={config.overdue_grace_days}
                               onChange={(e) => updateConfig(config.id, 'overdue_grace_days', Number(e.target.value))}
-                              className="w-20 px-2 py-1 border rounded"
+                              className="w-20 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
                             />
                           </td>
                         </tr>
