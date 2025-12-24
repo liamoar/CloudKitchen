@@ -137,19 +137,28 @@ export function LandingPage() {
 
       const slug = formData.subdomain;
 
-      const { data: owner, error: ownerError } = await supabase
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.ownerName,
+            phone: formData.phone,
+            role: 'RESTRO_OWNER',
+          },
+        },
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Failed to create account');
+
+      const { data: owner } = await supabase
         .from('users')
-        .insert({
-          role: 'RESTRO_OWNER',
-          name: formData.ownerName,
-          phone: formData.phone,
-          email: formData.email,
-          password: formData.password
-        })
-        .select()
+        .select('*')
+        .eq('auth_id', authData.user.id)
         .single();
 
-      if (ownerError) throw ownerError;
+      if (!owner) throw new Error('Failed to create user profile');
 
       const selectedTier = tiers.find(t => t.name === formData.tier);
 
@@ -209,7 +218,6 @@ export function LandingPage() {
         });
       }
 
-      localStorage.setItem('user', JSON.stringify(owner));
       window.location.href = buildSubdomainUrl(formData.subdomain, '/admin');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account');

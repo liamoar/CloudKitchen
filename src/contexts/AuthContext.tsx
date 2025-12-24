@@ -5,8 +5,8 @@ import type { User } from '../lib/database.types';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (phone: string, password: string) => Promise<void>;
-  signUp: (name: string, phone: string, email?: string, password?: string) => Promise<void>;
+  signIn: (emailOrPhone: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string, phone?: string, role?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -17,63 +17,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        loadUserProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        loadUserProfile(session.user.id);
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (phone: string, password: string) => {
+  const loadUserProfile = async (authId: string) => {
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('phone', phone)
-      .eq('password', password)
+      .eq('auth_id', authId)
       .maybeSingle();
 
-    if (error || !data) {
+    if (data) {
+      setUser(data);
+    }
+    setLoading(false);
+  };
+
+  const signIn = async (emailOrPhone: string, password: string) => {
+    let email = emailOrPhone;
+
+    if (!emailOrPhone.includes('@')) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('phone', emailOrPhone)
+        .maybeSingle();
+
+      if (!userData?.email) {
+        throw new Error('Invalid credentials');
+      }
+      email = userData.email;
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
       throw new Error('Invalid credentials');
     }
 
-    setUser(data);
-    localStorage.setItem('user', JSON.stringify(data));
+    if (data.user) {
+      await loadUserProfile(data.user.id);
+    }
   };
 
-  const signUp = async (name: string, phone: string, email?: string, password?: string) => {
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('*')
-      .eq('phone', phone)
-      .maybeSingle();
+  const signUp = async (email: string, password: string, name: string, phone?: string, role: string = 'CUSTOMER') => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          phone,
+          role,
+        },
+      },
+    });
 
-    if (existingUser) {
-      throw new Error('Phone number already registered');
+    if (error) {
+      throw error;
     }
 
-    const { data, error } = await supabase
-      .from('users')
-      .insert({
-        role: 'CUSTOMER',
-        name,
-        phone,
-        email: email || null,
-        password: password || null,
-      })
-      .select()
-      .single();
-
-    if (error || !data) {
-      throw new Error('Failed to create account');
+    if (data.user) {
+      await loadUserProfile(data.user.id);
     }
-
-    setUser(data);
-    localStorage.setItem('user', JSON.stringify(data));
   };
 
   const signOut = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('user');
     localStorage.removeItem('cart');
   };
 

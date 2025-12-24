@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase';
 export function RestaurantLogin() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
-  const [phone, setPhone] = useState('');
+  const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -40,7 +40,7 @@ export function RestaurantLogin() {
     setError('');
 
     try {
-      await signIn(phone, password);
+      await signIn(emailOrPhone, password);
       navigate('/admin');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in');
@@ -72,15 +72,15 @@ export function RestaurantLogin() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number
+                Email or Phone Number
               </label>
               <input
-                type="tel"
+                type="text"
                 required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                value={emailOrPhone}
+                onChange={(e) => setEmailOrPhone(e.target.value)}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Your registered phone number"
+                placeholder="Email or phone number"
               />
             </div>
 
