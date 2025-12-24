@@ -20,6 +20,8 @@ interface RestaurantInfo {
   address: string;
   subdomain: string;
   is_open: boolean;
+  currency: string;
+  country: string;
 }
 
 export function RestroAdminDashboard() {
@@ -38,7 +40,14 @@ export function RestroAdminDashboard() {
 
     const { data: restaurant } = await supabase
       .from('restaurants')
-      .select('id, subdomain, is_open')
+      .select(`
+        id,
+        subdomain,
+        is_open,
+        country,
+        restaurant_currency,
+        tier:subscription_tiers(currency)
+      `)
       .eq('owner_id', user.id)
       .maybeSingle();
 
@@ -49,6 +58,8 @@ export function RestroAdminDashboard() {
         .eq('restaurant_id', restaurant.id)
         .maybeSingle();
 
+      const currency = restaurant.tier?.currency || restaurant.restaurant_currency || 'USD';
+
       if (settings) {
         setRestaurantInfo({
           name: settings.name || 'My Restaurant',
@@ -57,6 +68,8 @@ export function RestroAdminDashboard() {
           address: settings.address || '',
           subdomain: restaurant.subdomain || '',
           is_open: restaurant.is_open,
+          currency: currency,
+          country: restaurant.country || 'US',
         });
       }
     }
@@ -169,12 +182,12 @@ export function RestroAdminDashboard() {
         </nav>
 
         {activeTab === 'settings' && <RestaurantSettings />}
-        {activeTab === 'products' && <ProductManagement />}
-        {activeTab === 'orders' && <OrderManagement />}
+        {activeTab === 'products' && <ProductManagement currency={restaurantInfo?.currency} />}
+        {activeTab === 'orders' && <OrderManagement currency={restaurantInfo?.currency} />}
         {activeTab === 'customers' && <CustomerManagement />}
         {activeTab === 'riders' && <RiderManagement />}
-        {activeTab === 'sales' && <SalesAnalytics />}
-        {activeTab === 'subscription' && <SubscriptionStatus />}
+        {activeTab === 'sales' && <SalesAnalytics currency={restaurantInfo?.currency} />}
+        {activeTab === 'subscription' && <SubscriptionStatus currency={restaurantInfo?.currency} />}
       </div>
     </div>
   );

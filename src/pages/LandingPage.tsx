@@ -12,10 +12,14 @@ import { validateSubdomain, buildSubdomainUrl } from '../lib/utils';
 interface SubscriptionTier {
   id: string;
   name: string;
+  country: string;
+  country_name: string;
+  currency: string;
   monthly_price: number;
   product_limit: number;
   order_limit_per_month: number;
   storage_limit_mb: number;
+  trial_days: number;
 }
 
 export function LandingPage() {
@@ -43,8 +47,34 @@ export function LandingPage() {
   const [checkingSubdomain, setCheckingSubdomain] = useState(false);
 
   useEffect(() => {
+    detectCountryByIP();
+  }, []);
+
+  useEffect(() => {
     loadTiers();
   }, [selectedCountry]);
+
+  const detectCountryByIP = async () => {
+    try {
+      const response = await fetch('https://ipapi.co/json/');
+      const data = await response.json();
+
+      if (data.country_code) {
+        const detectedCountry = data.country_code.toUpperCase();
+
+        if (detectedCountry === 'NP' || detectedCountry === 'AE') {
+          setSelectedCountry(detectedCountry);
+          setFormData(prev => ({ ...prev, country: detectedCountry }));
+        } else {
+          setSelectedCountry('AE');
+          setFormData(prev => ({ ...prev, country: 'AE' }));
+        }
+      }
+    } catch (error) {
+      console.error('Error detecting country:', error);
+      setSelectedCountry('AE');
+    }
+  };
 
   const loadTiers = async () => {
     const { data } = await supabase
@@ -137,19 +167,28 @@ export function LandingPage() {
 
       const slug = formData.subdomain;
 
-      const { data: owner, error: ownerError } = await supabase
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.ownerName,
+            phone: formData.phone,
+            role: 'RESTRO_OWNER',
+          },
+        },
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Failed to create account');
+
+      const { data: owner } = await supabase
         .from('users')
-        .insert({
-          role: 'RESTRO_OWNER',
-          name: formData.ownerName,
-          phone: formData.phone,
-          email: formData.email,
-          password: formData.password
-        })
-        .select()
+        .select('*')
+        .eq('auth_id', authData.user.id)
         .single();
 
-      if (ownerError) throw ownerError;
+      if (!owner) throw new Error('Failed to create user profile');
 
       const selectedTier = tiers.find(t => t.name === formData.tier);
 
@@ -209,7 +248,6 @@ export function LandingPage() {
         });
       }
 
-      localStorage.setItem('user', JSON.stringify(owner));
       window.location.href = buildSubdomainUrl(formData.subdomain, '/admin');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account');
@@ -719,9 +757,10 @@ export function LandingPage() {
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">{tier.name}</h3>
                 <div className="flex items-baseline justify-center gap-2 mb-4">
                   <span className="text-5xl font-bold text-gray-900">{tier.monthly_price}</span>
-                  <span className="text-xl text-gray-600">{getCurrencySymbol(selectedCountry)}</span>
+                  <span className="text-xl text-gray-600">{tier.currency}</span>
                   <span className="text-gray-500">/month</span>
                 </div>
+                <p className="text-sm text-gray-500">{tier.trial_days} days free trial</p>
               </div>
 
               <ul className="space-y-4 mb-8">
