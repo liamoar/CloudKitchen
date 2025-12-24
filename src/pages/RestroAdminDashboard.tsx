@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X, CreditCard, Users, Store, Phone, Mail, Clock, ExternalLink, MapPin } from 'lucide-react';
+import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X, CreditCard, Users, Store, Phone, Mail, Clock, ExternalLink, MapPin, UserCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -9,8 +9,9 @@ import { OrderManagement } from '../components/admin/OrderManagement';
 import { SalesAnalytics } from '../components/admin/SalesAnalytics';
 import { SubscriptionStatus } from '../components/admin/SubscriptionStatus';
 import { RiderManagement } from '../components/admin/RiderManagement';
+import { CustomerManagement } from '../components/admin/CustomerManagement';
 
-type Tab = 'settings' | 'products' | 'orders' | 'sales' | 'subscription' | 'riders';
+type Tab = 'settings' | 'products' | 'orders' | 'sales' | 'subscription' | 'riders' | 'customers';
 
 interface RestaurantInfo {
   name: string;
@@ -69,6 +70,7 @@ export function RestroAdminDashboard() {
   const tabs = [
     { id: 'orders' as Tab, label: 'Orders', icon: Receipt },
     { id: 'products' as Tab, label: 'Products', icon: Package },
+    { id: 'customers' as Tab, label: 'Customers', icon: UserCheck },
     { id: 'riders' as Tab, label: 'Riders', icon: Users },
     { id: 'sales' as Tab, label: 'Sales', icon: BarChart3 },
     { id: 'subscription' as Tab, label: 'Subscription', icon: CreditCard },
@@ -169,6 +171,7 @@ export function RestroAdminDashboard() {
         {activeTab === 'settings' && <RestaurantSettings />}
         {activeTab === 'products' && <ProductManagement />}
         {activeTab === 'orders' && <OrderManagement />}
+        {activeTab === 'customers' && <CustomerManagement />}
         {activeTab === 'riders' && <RiderManagement />}
         {activeTab === 'sales' && <SalesAnalytics />}
         {activeTab === 'subscription' && <SubscriptionStatus />}

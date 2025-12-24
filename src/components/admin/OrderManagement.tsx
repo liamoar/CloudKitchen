@@ -15,6 +15,9 @@ interface OrderWithItems extends Order {
   riderLink?: string;
   customerLink?: string;
   customerName?: string;
+  customerEmail?: string;
+  customerOrderCount?: number;
+  isNewCustomer?: boolean;
 }
 
 interface Restaurant {
@@ -131,28 +134,33 @@ export function OrderManagement() {
             .select('*')
             .eq('order_id', order.id);
 
-          // Try to get customer name from order metadata
-          let customerName = '';
+          let customerName = 'Customer';
+          let customerEmail = '';
+          let customerOrderCount = 0;
+          let isNewCustomer = true;
           let riderLink: string | undefined;
           let customerLink: string | undefined;
 
-          // Get customer name - check if we stored it in a separate field
-          // For now, we'll extract from address or use placeholder
-          if (order.delivery_address && !order.delivery_address.includes('Self Pickup')) {
-            // Try to parse "Name, Address, City" format
-            const parts = order.delivery_address.split(', ');
-            if (parts.length > 2) {
-              // Assume first part is name if it doesn't look like an address
-              if (!parts[0].match(/\d/)) { // Doesn't contain numbers
-                customerName = parts[0];
-              } else {
-                customerName = 'Customer';
-              }
-            } else {
-              customerName = 'Customer';
+          if (order.customer_id) {
+            const { data: customer } = await supabase
+              .from('customers')
+              .select('name, email')
+              .eq('id', order.customer_id)
+              .maybeSingle();
+
+            if (customer) {
+              customerName = customer.name;
+              customerEmail = customer.email || '';
             }
-          } else {
-            customerName = 'Customer';
+
+            const { count } = await supabase
+              .from('orders')
+              .select('id', { count: 'exact', head: true })
+              .eq('customer_id', order.customer_id)
+              .eq('restaurant_id', restaurant.id);
+
+            customerOrderCount = count || 0;
+            isNewCustomer = customerOrderCount === 1;
           }
 
           // Get rider tracking token
@@ -185,12 +193,15 @@ export function OrderManagement() {
             customerLink = `${window.location.origin}/track/${customerToken.token}`;
           }
 
-          return { 
-            ...order, 
-            items: items || [], 
-            riderLink, 
+          return {
+            ...order,
+            items: items || [],
+            riderLink,
             customerLink,
-            customerName
+            customerName,
+            customerEmail,
+            customerOrderCount,
+            isNewCustomer
           };
         })
       );
@@ -445,15 +456,32 @@ export function OrderManagement() {
                 <div className="flex items-center gap-2">
                   <UserIcon size={16} className="text-gray-400" />
                   <div>
-                    <div className="font-medium text-gray-900">{order.customerName}</div>
-                    <div className="text-sm text-gray-500">Customer</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium text-gray-900">{order.customerName}</div>
+                      {order.isNewCustomer && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-medium">
+                          NEW
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {order.customerOrderCount && order.customerOrderCount > 1 ? `${order.customerOrderCount} orders` : 'First order'}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone size={16} className="text-gray-400" />
                   <div>
                     <div className="font-medium text-gray-900">{order.phone_number}</div>
-                    <div className="text-sm text-gray-500">Phone</div>
+                    {order.customerEmail && (
+                      <div className="text-xs text-gray-500 flex items-center gap-1">
+                        <Mail size={12} />
+                        {order.customerEmail}
+                      </div>
+                    )}
+                    {!order.customerEmail && (
+                      <div className="text-sm text-gray-500">Phone</div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
