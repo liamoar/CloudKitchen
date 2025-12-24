@@ -266,20 +266,39 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
           {getStatusBadge(restaurant.subscription_status)}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {restaurant.subscription_status === 'TRIAL' && restaurant.trial_ends_at && (
             <div className="bg-blue-50 rounded-lg p-4">
               <div className="flex items-center gap-3 mb-2">
-                <Calendar className="text-blue-600" size={24} />
+                <Clock className="text-blue-600" size={24} />
                 <h3 className="font-semibold text-blue-900">Trial Period</h3>
               </div>
-              <p className="text-sm text-blue-800">
-                {daysLeft && daysLeft > 0
-                  ? `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} remaining`
-                  : 'Trial ended'}
+              <p className="text-2xl font-bold text-blue-900 mb-1">
+                {daysLeft && daysLeft > 0 ? daysLeft : 0} {daysLeft === 1 ? 'Day' : 'Days'}
               </p>
-              <p className="text-xs text-blue-700 mt-1">
+              <p className="text-xs text-blue-700">
+                {daysLeft && daysLeft > 0 ? 'until trial ends' : 'Trial ended'}
+              </p>
+              <p className="text-xs text-blue-600 mt-2">
                 Ends: {new Date(restaurant.trial_ends_at).toLocaleDateString()}
+              </p>
+            </div>
+          )}
+
+          {restaurant.subscription_status === 'ACTIVE' && restaurant.subscription_ends_at && (
+            <div className="bg-orange-50 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-2">
+                <Calendar className="text-orange-600" size={24} />
+                <h3 className="font-semibold text-orange-900">Next Renewal</h3>
+              </div>
+              <p className="text-2xl font-bold text-orange-900 mb-1">
+                {Math.ceil((new Date(restaurant.subscription_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} Days
+              </p>
+              <p className="text-xs text-orange-700">
+                until next billing
+              </p>
+              <p className="text-xs text-orange-600 mt-2">
+                Due: {new Date(restaurant.subscription_ends_at).toLocaleDateString()}
               </p>
             </div>
           )}
@@ -297,17 +316,6 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
             </div>
           )}
 
-          {restaurant.subscription_ends_at && (
-            <div className="bg-orange-50 rounded-lg p-4">
-              <div className="flex items-center gap-3 mb-2">
-                <AlertTriangle className="text-orange-600" size={24} />
-                <h3 className="font-semibold text-orange-900">Next Billing</h3>
-              </div>
-              <p className="text-xs text-orange-700">
-                {new Date(restaurant.subscription_ends_at).toLocaleDateString()}
-              </p>
-            </div>
-          )}
         </div>
 
         <div className="mt-6 flex gap-3">
