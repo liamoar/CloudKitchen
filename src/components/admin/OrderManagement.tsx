@@ -37,7 +37,11 @@ interface Rider {
 
 const ITEMS_PER_PAGE = 10;
 
-export function OrderManagement() {
+interface OrderManagementProps {
+  currency?: string;
+}
+
+export function OrderManagement({ currency: propCurrency }: OrderManagementProps) {
   const { user } = useAuth();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<OrderWithItems[]>([]);
@@ -47,6 +51,8 @@ export function OrderManagement() {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [riders, setRiders] = useState<Rider[]>([]);
   const [notification, setNotification] = useState<{message: string; type: 'success' | 'error'} | null>(null);
+
+  const currency = propCurrency || restaurant?.restaurant_currency || 'USD';
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -499,7 +505,7 @@ export function OrderManagement() {
                   <DollarSign size={16} className="text-gray-400" />
                   <div>
                     <div className="font-bold text-lg text-orange-600">
-                      {formatCurrency(order.total_amount, restaurant?.restaurant_currency || 'AED')}
+                      {formatCurrency(order.total_amount, currency)}
                     </div>
                     <div className="text-xs text-gray-500">
                       {order.items.length} item{order.items.length !== 1 ? 's' : ''}
@@ -551,7 +557,7 @@ export function OrderManagement() {
                             )}
                           </div>
                           <span className="font-semibold text-orange-600">
-                            {formatCurrency(item.price * item.quantity, restaurant?.restaurant_currency || 'AED')}
+                            {formatCurrency(item.price * item.quantity, currency)}
                           </span>
                         </li>
                       ))}
@@ -559,21 +565,21 @@ export function OrderManagement() {
                     <div className="flex justify-between mt-3 pt-3 border-t">
                       <span className="font-medium">Items Total</span>
                       <span className="font-bold">
-                        {formatCurrency(order.total_amount - (order.delivery_fee || 0), restaurant?.restaurant_currency || 'AED')}
+                        {formatCurrency(order.total_amount - (order.delivery_fee || 0), currency)}
                       </span>
                     </div>
                     {order.delivery_fee > 0 && (
                       <div className="flex justify-between mt-2">
                         <span className="text-gray-600">Delivery Fee</span>
                         <span className="text-gray-700">
-                          {formatCurrency(order.delivery_fee, restaurant?.restaurant_currency || 'AED')}
+                          {formatCurrency(order.delivery_fee, currency)}
                         </span>
                       </div>
                     )}
                     <div className="flex justify-between mt-2 pt-2 border-t font-bold">
                       <span>Total Amount</span>
                       <span className="text-orange-600">
-                        {formatCurrency(order.total_amount, restaurant?.restaurant_currency || 'AED')}
+                        {formatCurrency(order.total_amount, currency)}
                       </span>
                     </div>
                   </div>

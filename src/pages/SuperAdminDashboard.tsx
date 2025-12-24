@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../lib/utils';
-import { Building2, DollarSign, Clock, CheckCircle, XCircle, Settings, LogOut, Trash2, Ban, Package, ShoppingCart, Edit2, Eye, EyeOff } from 'lucide-react';
+import { Building2, DollarSign, Clock, CheckCircle, XCircle, LogOut, Trash2, Ban, Package, ShoppingCart, Edit2, Eye, EyeOff, Globe } from 'lucide-react';
 import PaymentApproval from '../components/superadmin/PaymentApproval';
+import CountryTierManagement from '../components/superadmin/CountryTierManagement';
+import CountryAnalytics from '../components/superadmin/CountryAnalytics';
 
 interface Restaurant {
   id: string;
@@ -33,26 +35,6 @@ interface Restaurant {
   } | null;
 }
 
-interface SubscriptionConfig {
-  id: string;
-  country: string;
-  currency: string;
-  monthly_price: number;
-  trial_days: number;
-  overdue_grace_days: number;
-}
-
-interface SubscriptionTier {
-  id: string;
-  name: string;
-  country: string;
-  monthly_price: number;
-  product_limit: number;
-  order_limit_per_month: number;
-  storage_limit_mb: number;
-  is_active: boolean;
-}
-
 interface SalesStats {
   platformRevenueByCurrency: { currency: string; amount: number }[];
   monthlyRevenueByCurrency: { currency: string; amount: number }[];
@@ -68,10 +50,8 @@ interface SalesStats {
 export function SuperAdminDashboard() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'config' | 'tiers'>('restaurants');
+  const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'tiers'>('restaurants');
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [configs, setConfigs] = useState<SubscriptionConfig[]>([]);
-  const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [salesStats, setSalesStats] = useState<SalesStats>({
     platformRevenueByCurrency: [],
     monthlyRevenueByCurrency: [],
@@ -200,18 +180,6 @@ export function SuperAdminDashboard() {
             totalOrdersThisMonth
           });
         }
-      } else if (activeTab === 'config') {
-        const { data } = await supabase
-          .from('subscription_configs')
-          .select('*')
-          .order('country');
-        setConfigs(data || []);
-      } else if (activeTab === 'tiers') {
-        const { data } = await supabase
-          .from('subscription_tiers')
-          .select('*')
-          .order('country, name');
-        setTiers(data || []);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -220,29 +188,6 @@ export function SuperAdminDashboard() {
     }
   };
 
-  const updateConfig = async (configId: string, field: string, value: number) => {
-    try {
-      await supabase
-        .from('subscription_configs')
-        .update({ [field]: value })
-        .eq('id', configId);
-      loadData();
-    } catch (error) {
-      console.error('Error updating config:', error);
-    }
-  };
-
-  const updateTier = async (tierId: string, field: string, value: number) => {
-    try {
-      await supabase
-        .from('subscription_tiers')
-        .update({ [field]: value })
-        .eq('id', tierId);
-      loadData();
-    } catch (error) {
-      console.error('Error updating tier:', error);
-    }
-  };
 
   const deactivateBusiness = async (restaurantId: string) => {
     if (!confirm('Are you sure you want to deactivate this business? They will not be able to operate until reactivated.')) {
@@ -522,19 +467,8 @@ export function SuperAdminDashboard() {
                 : 'bg-white text-gray-700 hover:bg-gray-50'
             }`}
           >
-            <Package size={20} />
-            Subscription Tiers
-          </button>
-          <button
-            onClick={() => setActiveTab('config')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-              activeTab === 'config'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <Settings size={20} />
-            Configuration
+            <Globe size={20} />
+            Countries & Tiers
           </button>
         </div>
 
@@ -825,6 +759,8 @@ export function SuperAdminDashboard() {
                     </div>
                   </div>
                 </div>
+
+                <CountryAnalytics />
               </div>
             )}
 
@@ -835,175 +771,7 @@ export function SuperAdminDashboard() {
             )}
 
             {activeTab === 'tiers' && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h2 className="text-xl font-bold text-gray-900 mb-4">Subscription Tiers Management</h2>
-                  <p className="text-sm text-gray-600 mb-6">
-                    Configure subscription tiers for each country. Set order limits, product limits, and pricing.
-                    Use -1 for unlimited access.
-                  </p>
-
-                  <div className="space-y-8">
-                    {['AE', 'NP'].map((country) => {
-                      const countryTiers = tiers.filter(t => t.country === country);
-                      return (
-                        <div key={country} className="border rounded-lg p-6">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                            {country === 'AE' ? 'United Arab Emirates (UAE)' : 'Nepal'}
-                          </h3>
-                          <div className="overflow-x-auto">
-                            <table className="w-full">
-                              <thead className="bg-gray-50 border-b">
-                                <tr>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monthly Price</th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Limit/Month</th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product Limit</th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Storage (MB)</th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y">
-                                {countryTiers.map((tier) => (
-                                  <tr key={tier.id}>
-                                    <td className="px-4 py-4 font-medium text-gray-900">{tier.name}</td>
-                                    <td className="px-4 py-4">
-                                      <input
-                                        type="number"
-                                        value={tier.monthly_price}
-                                        onChange={(e) => updateTier(tier.id, 'monthly_price', Number(e.target.value))}
-                                        className="w-24 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
-                                      />
-                                    </td>
-                                    <td className="px-4 py-4">
-                                      <input
-                                        type="number"
-                                        value={tier.order_limit_per_month}
-                                        onChange={(e) => updateTier(tier.id, 'order_limit_per_month', Number(e.target.value))}
-                                        className="w-24 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
-                                        placeholder="-1 = unlimited"
-                                      />
-                                      {tier.order_limit_per_month === -1 && (
-                                        <span className="text-xs text-green-600 ml-2">Unlimited</span>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-4">
-                                      <input
-                                        type="number"
-                                        value={tier.product_limit}
-                                        onChange={(e) => updateTier(tier.id, 'product_limit', Number(e.target.value))}
-                                        className="w-24 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
-                                        placeholder="-1 = unlimited"
-                                      />
-                                      {tier.product_limit === -1 && (
-                                        <span className="text-xs text-green-600 ml-2">Unlimited</span>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-4">
-                                      <input
-                                        type="number"
-                                        value={tier.storage_limit_mb}
-                                        onChange={(e) => updateTier(tier.id, 'storage_limit_mb', Number(e.target.value))}
-                                        className="w-24 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
-                                      />
-                                    </td>
-                                    <td className="px-4 py-4">
-                                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                        tier.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                                      }`}>
-                                        {tier.is_active ? 'Active' : 'Inactive'}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                    <h4 className="text-sm font-semibold text-blue-900 mb-2">Important Notes:</h4>
-                    <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-                      <li>Use -1 to indicate unlimited orders or products</li>
-                      <li>Basic tier limits: 40 orders per month by default</li>
-                      <li>Premium tier: Typically unlimited (-1) for orders and products</li>
-                      <li>Changes apply immediately to all businesses in that country/tier</li>
-                      <li>Businesses are assigned tiers based on their country</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'config' && (
-              <div className="bg-white rounded-lg shadow">
-                <div className="p-6 border-b">
-                  <h2 className="text-xl font-bold text-gray-900">General Configuration</h2>
-                  <p className="text-sm text-gray-600 mt-1">Configure trial periods and grace days for each country</p>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                          Country
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                          Currency
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                          Monthly Price
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                          Trial Days
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                          Overdue Grace Days
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {configs.map((config) => (
-                        <tr key={config.id}>
-                          <td className="px-6 py-4 font-medium text-gray-900">
-                            {config.country}
-                          </td>
-                          <td className="px-6 py-4 text-gray-700">
-                            {config.currency}
-                          </td>
-                          <td className="px-6 py-4">
-                            <input
-                              type="number"
-                              value={config.monthly_price}
-                              onChange={(e) => updateConfig(config.id, 'monthly_price', Number(e.target.value))}
-                              className="w-24 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
-                            />
-                          </td>
-                          <td className="px-6 py-4">
-                            <input
-                              type="number"
-                              value={config.trial_days}
-                              onChange={(e) => updateConfig(config.id, 'trial_days', Number(e.target.value))}
-                              className="w-20 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
-                            />
-                          </td>
-                          <td className="px-6 py-4">
-                            <input
-                              type="number"
-                              value={config.overdue_grace_days}
-                              onChange={(e) => updateConfig(config.id, 'overdue_grace_days', Number(e.target.value))}
-                              className="w-20 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <CountryTierManagement />
             )}
           </>
         )}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { DollarSign, ShoppingCart, CreditCard, TrendingUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatCurrency } from '../../lib/utils';
 import type { Order } from '../../lib/database.types';
 
 interface SalesData {
@@ -14,7 +15,11 @@ interface SalesData {
   confirmedPayments: number;
 }
 
-export function SalesAnalytics() {
+interface SalesAnalyticsProps {
+  currency?: string;
+}
+
+export function SalesAnalytics({ currency = 'USD' }: SalesAnalyticsProps) {
   const { user } = useAuth();
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [period, setPeriod] = useState<'day' | 'week' | 'month' | 'year'>('day');
@@ -157,7 +162,7 @@ export function SalesAnalytics() {
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Total Revenue"
-          value={`₹${salesData.totalRevenue.toFixed(2)}`}
+          value={formatCurrency(salesData.totalRevenue, currency)}
           icon={DollarSign}
           color="bg-green-500"
         />
@@ -171,14 +176,14 @@ export function SalesAnalytics() {
         <StatCard
           title="COD Orders"
           value={salesData.codOrders}
-          subtitle={`₹${salesData.codRevenue.toFixed(2)}`}
+          subtitle={formatCurrency(salesData.codRevenue, currency)}
           icon={DollarSign}
           color="bg-orange-500"
         />
         <StatCard
           title="Bank Transfer"
           value={salesData.bankTransferOrders}
-          subtitle={`₹${salesData.bankTransferRevenue.toFixed(2)}`}
+          subtitle={formatCurrency(salesData.bankTransferRevenue, currency)}
           icon={CreditCard}
           color="bg-purple-500"
         />
@@ -210,7 +215,7 @@ export function SalesAnalytics() {
                 ></div>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                {salesData.codOrders} orders • ₹{salesData.codRevenue.toFixed(2)}
+                {salesData.codOrders} orders • {formatCurrency(salesData.codRevenue, currency)}
               </p>
             </div>
 
@@ -233,7 +238,7 @@ export function SalesAnalytics() {
                 ></div>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                {salesData.bankTransferOrders} orders • ₹{salesData.bankTransferRevenue.toFixed(2)}
+                {salesData.bankTransferOrders} orders • {formatCurrency(salesData.bankTransferRevenue, currency)}
               </p>
             </div>
           </div>
@@ -283,22 +288,21 @@ export function SalesAnalytics() {
           <div className="p-4 bg-gray-50 rounded-lg">
             <p className="text-gray-600 mb-1">Average Order Value</p>
             <p className="text-xl font-bold text-gray-800">
-              ₹{salesData.totalOrders > 0 ? (salesData.totalRevenue / salesData.totalOrders).toFixed(2) : '0.00'}
+              {formatCurrency(salesData.totalOrders > 0 ? (salesData.totalRevenue / salesData.totalOrders) : 0, currency)}
             </p>
           </div>
           <div className="p-4 bg-gray-50 rounded-lg">
             <p className="text-gray-600 mb-1">COD Average</p>
             <p className="text-xl font-bold text-gray-800">
-              ₹{salesData.codOrders > 0 ? (salesData.codRevenue / salesData.codOrders).toFixed(2) : '0.00'}
+              {formatCurrency(salesData.codOrders > 0 ? (salesData.codRevenue / salesData.codOrders) : 0, currency)}
             </p>
           </div>
           <div className="p-4 bg-gray-50 rounded-lg">
             <p className="text-gray-600 mb-1">Bank Transfer Average</p>
             <p className="text-xl font-bold text-gray-800">
-              ₹
-              {salesData.bankTransferOrders > 0
-                ? (salesData.bankTransferRevenue / salesData.bankTransferOrders).toFixed(2)
-                : '0.00'}
+              {formatCurrency(salesData.bankTransferOrders > 0
+                ? (salesData.bankTransferRevenue / salesData.bankTransferOrders)
+                : 0, currency)}
             </p>
           </div>
         </div>
