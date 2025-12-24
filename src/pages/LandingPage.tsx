@@ -265,7 +265,7 @@ export function LandingPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center gap-2">
               <Store className="text-emerald-600" size={32} />
-              <span className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">OrderFlow</span>
+              <span className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">hejo.app</span>
             </div>
           </div>
         </nav>
@@ -273,7 +273,7 @@ export function LandingPage() {
         <div className="max-w-2xl mx-auto px-4 py-12">
           <div className="bg-white rounded-xl shadow-xl p-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Start Your Business Online</h2>
-            <p className="text-gray-600 mb-6">Join hundreds of businesses already using OrderFlow</p>
+            <p className="text-gray-600 mb-6">Join hundreds of businesses already using hejo.app</p>
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg mb-4 text-sm">
@@ -313,7 +313,7 @@ export function LandingPage() {
                     pattern="[a-z0-9][a-z0-9-]*[a-z0-9]"
                   />
                   <span className="px-4 py-3 bg-gray-100 text-gray-600 text-sm whitespace-nowrap border-l">
-                    .yourdomain.com
+                    .hejo.app
                   </span>
                 </div>
                 {checkingSubdomain && (
@@ -325,7 +325,7 @@ export function LandingPage() {
                 {!subdomainError && formData.subdomain.length >= 3 && !checkingSubdomain && (
                   <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
                     <CheckCircle size={14} />
-                    Available! Your store will be at: {formData.subdomain}.yourdomain.com
+                    Available! Your store will be at: {formData.subdomain}.hejo.app
                   </p>
                 )}
                 <p className="text-xs text-gray-500 mt-1">
@@ -469,7 +469,7 @@ export function LandingPage() {
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
               <Store className="text-emerald-600" size={32} />
-              <span className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">OrderFlow</span>
+              <span className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">hejo.app</span>
             </div>
             <div className="flex items-center gap-4">
               <button
@@ -660,7 +660,7 @@ export function LandingPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-4xl font-bold mb-6">Ready to Transform Your Business?</h2>
           <p className="text-xl mb-10 opacity-90">
-            Join hundreds of businesses managing orders, inventory, and deliveries with OrderFlow
+            Join hundreds of businesses managing orders, inventory, and deliveries with hejo.app
           </p>
           <button
             onClick={() => setShowSignup(true)}
@@ -676,10 +676,10 @@ export function LandingPage() {
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center gap-2 mb-4 md:mb-0">
               <Store size={24} />
-              <span className="text-xl font-bold">OrderFlow</span>
+              <span className="text-xl font-bold">hejo.app</span>
             </div>
             <p className="text-gray-400 text-sm">
-              © 2024 OrderFlow. All rights reserved.
+              © 2024 hejo.app. All rights reserved.
             </p>
           </div>
         </div>

@@ -137,8 +137,13 @@ export function buildSubdomainUrl(subdomain: string, path: string = ''): string 
     // Replace existing subdomain
     newHostname = hostname.replace(currentSubdomain, subdomain);
   } else {
+    // Strip 'www' if present before adding subdomain
+    let baseHostname = hostname;
+    if (hostname.startsWith('www.')) {
+      baseHostname = hostname.substring(4);
+    }
     // Add subdomain to main domain
-    newHostname = `${subdomain}.${hostname}`;
+    newHostname = `${subdomain}.${baseHostname}`;
   }
 
   const portPart = port ? `:${port}` : '';

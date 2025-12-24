@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Store } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { getSubdomain } from '../lib/utils';
+import { supabase } from '../lib/supabase';
 
 export function RestaurantLogin() {
   const { signIn } = useAuth();
@@ -10,6 +12,26 @@ export function RestaurantLogin() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [businessName, setBusinessName] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadBusinessName();
+  }, []);
+
+  const loadBusinessName = async () => {
+    const subdomain = getSubdomain();
+    if (!subdomain) return;
+
+    const { data: restaurant } = await supabase
+      .from('restaurants')
+      .select('name')
+      .eq('subdomain', subdomain)
+      .maybeSingle();
+
+    if (restaurant) {
+      setBusinessName(restaurant.name);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,10 +56,10 @@ export function RestaurantLogin() {
             <Store size={48} className="text-orange-600" />
           </div>
           <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
-            Restaurant Admin Login
+            {businessName ? `${businessName}` : 'Restaurant Admin Login'}
           </h2>
           <p className="text-center text-gray-600 mb-6">
-            Sign in to manage your restaurant
+            {businessName ? 'Sign in to manage your dashboard' : 'Sign in to manage your restaurant'}
           </p>
 
           {error && (

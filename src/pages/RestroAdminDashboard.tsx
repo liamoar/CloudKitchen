@@ -85,10 +85,9 @@ export function RestroAdminDashboard() {
             <div className="flex items-center gap-3">
               <Store size={32} className="text-orange-500" />
               <div>
-                <h1 className="text-2xl font-bold text-gray-800">OrderFlow</h1>
+                <h1 className="text-2xl font-bold text-gray-800">{restaurantInfo?.name || 'hejo.app'}</h1>
                 {restaurantInfo && (
                   <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600 mt-1">
-                    <span className="font-medium text-gray-800">{restaurantInfo.name}</span>
                     {restaurantInfo.phone && (
                       <span className="flex items-center gap-1">
                         <Phone size={14} />
