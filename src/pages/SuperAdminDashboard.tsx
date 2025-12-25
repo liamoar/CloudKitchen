@@ -124,8 +124,21 @@ export function SuperAdminDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
+      console.log('Loading data for tab:', activeTab);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Current session:', session?.user?.id);
+
+      const { data: currentUser } = await supabase
+        .from('users')
+        .select('id, auth_id, role, email')
+        .eq('auth_id', session?.user?.id || '')
+        .maybeSingle();
+
+      console.log('Current user:', currentUser);
+
       if (activeTab === 'restaurants') {
-        const { data: businessesData } = await supabase
+        const { data: businessesData, error: businessesError } = await supabase
           .from('businesses')
           .select(`
             id,
@@ -144,7 +157,7 @@ export function SuperAdminDashboard() {
               short_name,
               currency
             ),
-            subscription_tiers(
+            subscription_tiers!businesses_subscription_tier_id_fkey(
               name,
               price,
               days,
@@ -154,6 +167,21 @@ export function SuperAdminDashboard() {
             )
           `)
           .order('created_at', { ascending: false });
+
+        if (businessesError) {
+          console.error('Error loading businesses:', businessesError);
+          setLoading(false);
+          return;
+        }
+
+        console.log('Loaded businesses:', businessesData);
+
+        if (!businessesData || businessesData.length === 0) {
+          console.log('No businesses found');
+          setRestaurants([]);
+          setLoading(false);
+          return;
+        }
 
         const restaurantsWithDetails = await Promise.all(
           (businessesData || []).map(async (business) => {
