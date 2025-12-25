@@ -5,7 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../lib/utils';
 import { Building2, DollarSign, Clock, CheckCircle, XCircle, LogOut, Trash2, Ban, Package, ShoppingCart, Edit2, Eye, EyeOff, Globe, MessageCircle } from 'lucide-react';
 import PaymentApproval from '../components/superadmin/PaymentApproval';
-import CountryTierManagement from '../components/superadmin/CountryTierManagement';
+import { CountryManagement } from '../components/superadmin/CountryManagement';
+import { TierManagement } from '../components/superadmin/TierManagement';
 import { SupportChatManagement } from '../components/superadmin/SupportChatManagement';
 
 interface Restaurant {
@@ -65,7 +66,7 @@ interface CountryOption {
 export function SuperAdminDashboard() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'tiers' | 'chat'>('restaurants');
+  const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'countries' | 'tiers' | 'chat'>('restaurants');
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [salesStats, setSalesStats] = useState<SalesStats>({
     platformRevenueByCurrency: [],
@@ -592,6 +593,17 @@ export function SuperAdminDashboard() {
             Payments
           </button>
           <button
+            onClick={() => setActiveTab('countries')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
+              activeTab === 'countries'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Globe size={20} />
+            Countries
+          </button>
+          <button
             onClick={() => setActiveTab('tiers')}
             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
               activeTab === 'tiers'
@@ -599,8 +611,8 @@ export function SuperAdminDashboard() {
                 : 'bg-white text-gray-700 hover:bg-gray-50'
             }`}
           >
-            <Globe size={20} />
-            Countries & Tiers
+            <Package size={20} />
+            Subscription Tiers
           </button>
           <button
             onClick={() => setActiveTab('chat')}
@@ -888,8 +900,12 @@ export function SuperAdminDashboard() {
               </div>
             )}
 
+            {activeTab === 'countries' && (
+              <CountryManagement />
+            )}
+
             {activeTab === 'tiers' && (
-              <CountryTierManagement />
+              <TierManagement />
             )}
 
             {activeTab === 'chat' && (
