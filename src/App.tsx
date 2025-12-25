@@ -20,7 +20,6 @@ const isLocalDevelopment = () => {
     hostname === '127.0.0.1' ||
     hostname.includes('stackblitz') ||
     hostname.includes('webcontainer') ||
-    hostname.includes('bolt') ||
     hostname.includes('csb.app') ||
     hostname.includes('replit') ||
     hostname.includes('gitpod') ||

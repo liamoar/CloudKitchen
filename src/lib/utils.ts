@@ -66,7 +66,6 @@ export function getSubdomain(): string | null {
     hostname === '127.0.0.1' ||
     hostname.includes('stackblitz') ||
     hostname.includes('webcontainer') ||
-    hostname.includes('bolt') ||
     hostname.includes('csb.app') ||
     hostname.includes('replit') ||
     hostname.includes('gitpod') ||
@@ -145,7 +144,6 @@ export function buildSubdomainUrl(subdomain: string, path: string = ''): string 
     hostname === '127.0.0.1' ||
     hostname.includes('stackblitz') ||
     hostname.includes('webcontainer') ||
-    hostname.includes('bolt') ||
     hostname.includes('csb.app') ||
     hostname.includes('replit') ||
     hostname.includes('gitpod') ||
@@ -220,7 +218,6 @@ export function getMainDomainUrl(path: string = ''): string {
     hostname === '127.0.0.1' ||
     hostname.includes('stackblitz') ||
     hostname.includes('webcontainer') ||
-    hostname.includes('bolt') ||
     hostname.includes('csb.app') ||
     hostname.includes('replit') ||
     hostname.includes('gitpod') ||
@@ -262,7 +259,6 @@ export function getBusinessUrl(path: string = ''): string {
     hostname === '127.0.0.1' ||
     hostname.includes('stackblitz') ||
     hostname.includes('webcontainer') ||
-    hostname.includes('bolt') ||
     hostname.includes('csb.app') ||
     hostname.includes('replit') ||
     hostname.includes('gitpod') ||
