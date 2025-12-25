@@ -144,8 +144,8 @@ export function RestroAdminDashboard() {
   const tabs = [
     { id: 'settings' as Tab, label: 'Settings', icon: Settings },
     { id: 'products' as Tab, label: 'Products', icon: Package },
+    { id: 'orders' as Tab, label: 'Orders', icon: Receipt },
     // Temporarily disabled tabs - will enable one by one after testing
-    // { id: 'orders' as Tab, label: 'Orders', icon: Receipt },
     // { id: 'customers' as Tab, label: 'Customers', icon: UserCheck },
     // { id: 'riders' as Tab, label: 'Riders', icon: Users },
     // { id: 'sales' as Tab, label: 'Sales', icon: BarChart3 },
@@ -346,8 +346,8 @@ export function RestroAdminDashboard() {
           <>
             {activeTab === 'settings' && <RestaurantSettings />}
             {activeTab === 'products' && <EnhancedProductManagement />}
+            {activeTab === 'orders' && <OrderManagement currency={restaurantInfo?.currency} />}
             {/* Temporarily disabled - will enable one by one */}
-            {/* {activeTab === 'orders' && <OrderManagement currency={restaurantInfo?.currency} />} */}
             {/* {activeTab === 'customers' && <CustomerManagement />} */}
             {/* {activeTab === 'riders' && <RiderManagement />} */}
             {/* {activeTab === 'sales' && <SalesAnalytics currency={restaurantInfo?.currency} />} */}

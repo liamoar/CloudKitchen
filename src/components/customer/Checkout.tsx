@@ -63,17 +63,26 @@ export function Checkout({ onBack }: CheckoutProps) {
     const loadRestaurant = async () => {
       if (!subdomain) return;
 
-      const { data } = await supabase
+      const { data: business } = await supabase
         .from('businesses')
-        .select('id, currency, minimum_order, delivery_fee')
+        .select('id, countries!inner(currency_symbol)')
         .eq('subdomain', subdomain)
         .maybeSingle();
 
-      if (data) {
-        setBusinessId(data.id);
-        setCurrency(data.currency || 'AED');
-        setMinimumOrderAmount(data.minimum_order || 0);
-        setDeliveryFee(data.delivery_fee || 0);
+      if (business) {
+        setBusinessId(business.id);
+        setCurrency(business.countries?.currency_symbol || 'USD');
+
+        const { data: settings } = await supabase
+          .from('business_settings')
+          .select('minimum_order_value, delivery_charges')
+          .eq('business_id', business.id)
+          .maybeSingle();
+
+        if (settings) {
+          setMinimumOrderAmount(settings.minimum_order_value || 0);
+          setDeliveryFee(settings.delivery_charges || 0);
+        }
       }
     };
 
@@ -95,11 +104,17 @@ export function Checkout({ onBack }: CheckoutProps) {
       return;
     }
 
+    if (!businessId) {
+      alert('Business information not loaded');
+      return;
+    }
+
     setLoading(true);
     try {
       const { data: existingCustomer } = await supabase
         .from('customers')
         .select('*')
+        .eq('business_id', businessId)
         .eq('phone', phoneNumber)
         .maybeSingle();
 
@@ -177,6 +192,7 @@ export function Checkout({ onBack }: CheckoutProps) {
         const { data: newCustomer, error: customerError } = await supabase
           .from('customers')
           .insert({
+            business_id: businessId,
             phone: phoneNumber,
             name: formData.name,
             email: formData.email || null,
