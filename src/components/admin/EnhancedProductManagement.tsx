@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Search, Download, Upload, ChevronLeft, ChevronRight, Grid, Table as TableIcon, X as XIcon } from 'lucide-react';
+import { Plus, CreditCard as Edit2, Trash2, Search, Download, Upload, ChevronLeft, ChevronRight, Grid2x2 as Grid, Table as TableIcon, X as XIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../lib/utils';
