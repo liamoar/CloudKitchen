@@ -48,6 +48,7 @@ export function Checkout({ onBack }: CheckoutProps) {
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
   const [showNewAddress, setShowNewAddress] = useState(false);
+  const [checkingCustomer, setCheckingCustomer] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -121,33 +122,27 @@ export function Checkout({ onBack }: CheckoutProps) {
     }
   }, [total, minimumOrderAmount, currency]);
 
-  const lookupCustomer = async () => {
-    if (!phoneNumber || phoneNumber.length < 5) {
-      alert('Please enter a valid phone number');
+  const lookupCustomer = async (phone: string) => {
+    if (!phone || phone.length < 8 || !businessId) {
       return;
     }
 
-    if (!businessId) {
-      alert('Business information not loaded');
-      return;
-    }
-
-    setLoading(true);
+    setCheckingCustomer(true);
     try {
       const { data: existingCustomer } = await supabase
         .from('customers')
         .select('*')
         .eq('business_id', businessId)
-        .eq('phone', phoneNumber)
+        .eq('phone', phone)
         .maybeSingle();
 
       if (existingCustomer) {
         setCustomer(existingCustomer);
-        setFormData({
-          ...formData,
+        setFormData(prev => ({
+          ...prev,
           name: existingCustomer.name,
           email: existingCustomer.email || '',
-        });
+        }));
 
         const { data: customerAddresses } = await supabase
           .from('customer_addresses')
@@ -159,20 +154,27 @@ export function Checkout({ onBack }: CheckoutProps) {
           setAddresses(customerAddresses);
           const defaultAddress = customerAddresses.find(a => a.is_default) || customerAddresses[0];
           setSelectedAddressId(defaultAddress.id);
-          setStep('addresses');
-        } else {
-          setStep('details');
         }
       } else {
-        setStep('details');
+        setCustomer(null);
+        setAddresses([]);
       }
     } catch (error) {
       console.error('Error looking up customer:', error);
-      setStep('details');
     } finally {
-      setLoading(false);
+      setCheckingCustomer(false);
     }
   };
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (phoneNumber && phoneNumber.length >= 8) {
+        lookupCustomer(phoneNumber);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [phoneNumber, businessId]);
 
   const saveNewAddress = async (customerId: string) => {
     if (addresses.length >= 2) {
@@ -209,7 +211,7 @@ export function Checkout({ onBack }: CheckoutProps) {
       }
 
       let customerId = customer?.id;
-      let deliveryAddress = '';
+      let customerAddressId: string | null = null;
 
       if (!customerId) {
         const { data: newCustomer, error: customerError } = await supabase
@@ -228,7 +230,7 @@ export function Checkout({ onBack }: CheckoutProps) {
 
         if (deliveryType === 'DELIVERY') {
           const newAddress = await saveNewAddress(customerId);
-          deliveryAddress = `${newAddress.full_address}, ${newAddress.city}`;
+          customerAddressId = newAddress.id;
         }
       } else {
         if (customer.name !== formData.name || customer.email !== formData.email) {
@@ -243,19 +245,12 @@ export function Checkout({ onBack }: CheckoutProps) {
 
         if (deliveryType === 'DELIVERY') {
           if (selectedAddressId) {
-            const selectedAddr = addresses.find(a => a.id === selectedAddressId);
-            if (selectedAddr) {
-              deliveryAddress = `${selectedAddr.full_address}, ${selectedAddr.city}`;
-            }
+            customerAddressId = selectedAddressId;
           } else if (showNewAddress && formData.address && formData.city) {
             const newAddress = await saveNewAddress(customerId);
-            deliveryAddress = `${newAddress.full_address}, ${newAddress.city}`;
+            customerAddressId = newAddress.id;
           }
         }
-      }
-
-      if (deliveryType === 'PICKUP') {
-        deliveryAddress = 'Self Pickup';
       }
 
       const finalDeliveryFee = deliveryType === 'DELIVERY' ? deliveryFee : 0;
@@ -265,18 +260,16 @@ export function Checkout({ onBack }: CheckoutProps) {
         .from('orders')
         .insert({
           customer_id: customerId,
-          user_id: user?.id || null,
+          customer_address_id: customerAddressId,
           business_id: businessId,
-          phone_number: phoneNumber,
-          delivery_address: deliveryAddress,
           total_amount: finalTotal,
-          discount_applied: 0,
           delivery_fee: finalDeliveryFee,
-          status: 'PENDING',
-          payment_method: paymentMethod,
+          status: 'pending',
+          payment_method: paymentMethod.toLowerCase(),
           is_self_pickup: deliveryType === 'PICKUP',
           payment_confirmed: false,
           delivery_notes: formData.notes || null,
+          notes: formData.notes || null,
         })
         .select()
         .single();
@@ -285,9 +278,9 @@ export function Checkout({ onBack }: CheckoutProps) {
 
       const orderItems = items.map((item) => ({
         order_id: order.id,
-        item_type: item.type,
-        item_id: item.id,
-        item_name: item.name,
+        product_id: item.id,
+        product_sku: null,
+        product_variant_details: null,
         quantity: item.quantity,
         price: item.price,
       }));

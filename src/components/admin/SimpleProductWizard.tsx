@@ -546,7 +546,11 @@ export function SimpleProductWizard({
               </button>
               <button
                 onClick={() => setStep(5)}
-                disabled={hasOptions ? samePrice === null || (!samePrice && !basePrice) : !basePrice}
+                disabled={
+                  hasOptions
+                    ? samePrice === null || (samePrice && !basePrice) || (!samePrice && variants.some(v => !v.price || parseFloat(v.price) <= 0))
+                    : !basePrice || parseFloat(basePrice) <= 0
+                }
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 font-semibold"
               >
                 Continue <ChevronRight size={20} />

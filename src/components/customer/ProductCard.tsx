@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Package, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Product } from '../../lib/database.types';
 import { useCart } from '../../contexts/CartContext';
 import { formatCurrency } from '../../lib/utils';
 import { getSubdomain } from '../../lib/utils';
+import { supabase } from '../../lib/supabase';
 
 interface ProductVariant {
   id: string;
@@ -14,6 +15,13 @@ interface ProductVariant {
   price: number;
   stock_quantity: number;
   is_active: boolean;
+}
+
+interface VariantImage {
+  id: string;
+  variant_id: string;
+  image_url: string;
+  display_order: number;
 }
 
 interface Settings {
@@ -43,6 +51,40 @@ export function ProductCard({
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     variants && variants.length > 0 ? variants[0] : null
   );
+  const [variantImages, setVariantImages] = useState<Record<string, string>>({});
+  const [loadingImages, setLoadingImages] = useState(false);
+
+  useEffect(() => {
+    if (!variants || variants.length === 0) return;
+
+    const loadVariantImages = async () => {
+      setLoadingImages(true);
+      try {
+        const variantIds = variants.map(v => v.id);
+        const { data } = await supabase
+          .from('product_variant_images')
+          .select('variant_id, image_url')
+          .in('variant_id', variantIds)
+          .order('display_order', { ascending: true });
+
+        if (data) {
+          const imageMap: Record<string, string> = {};
+          data.forEach(img => {
+            if (!imageMap[img.variant_id]) {
+              imageMap[img.variant_id] = img.image_url;
+            }
+          });
+          setVariantImages(imageMap);
+        }
+      } catch (error) {
+        console.error('Error loading variant images:', error);
+      } finally {
+        setLoadingImages(false);
+      }
+    };
+
+    loadVariantImages();
+  }, [variants]);
 
   const getAttributeOptions = () => {
     if (!variants) return {};
@@ -71,6 +113,15 @@ export function ProductCard({
       ? selectedVariant?.stock_quantity === 0
       : product.stock_quantity === 0
     : false;
+
+  const getCurrentImage = () => {
+    if (hasValidVariants && selectedVariant && variantImages[selectedVariant.id]) {
+      return variantImages[selectedVariant.id];
+    }
+    return product.image_url;
+  };
+
+  const currentImage = getCurrentImage();
 
   const handleAddToCart = () => {
     if (hasValidVariants && selectedVariant) {
@@ -125,9 +176,9 @@ export function ProductCard({
       <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all overflow-hidden border border-gray-100">
         <div className="flex flex-col sm:flex-row">
           <div className="sm:w-48 h-48 bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center flex-shrink-0">
-            {settings?.show_product_images && product.image_url ? (
+            {settings?.show_product_images && currentImage ? (
               <img
-                src={product.image_url}
+                src={currentImage}
                 alt={product.name}
                 className="w-full h-full object-cover"
               />
@@ -223,9 +274,9 @@ export function ProductCard({
   return (
     <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all overflow-hidden border border-gray-100 flex flex-col">
       <div className="h-48 bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center relative overflow-hidden">
-        {settings?.show_product_images && product.image_url ? (
+        {settings?.show_product_images && currentImage ? (
           <img
-            src={product.image_url}
+            src={currentImage}
             alt={product.name}
             className="w-full h-full object-cover"
           />
