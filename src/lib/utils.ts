@@ -60,8 +60,12 @@ export function getSubdomain(): string | null {
 
   const hostname = window.location.hostname;
 
-  // For localhost development, check for subdomain in format: subdomain.localhost
+  // For localhost development, check for route-based business parameter
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    const pathParts = window.location.pathname.split('/');
+    if (pathParts[1] === 'business' && pathParts[2]) {
+      return pathParts[2];
+    }
     return null;
   }
 
@@ -209,4 +213,20 @@ export function getMainDomainUrl(path: string = ''): string {
 
   const portPart = port ? `:${port}` : '';
   return `${protocol}//${mainHostname}${portPart}${path}`;
+}
+
+export function getBusinessUrl(path: string = ''): string {
+  if (typeof window === 'undefined') return '';
+
+  const hostname = window.location.hostname;
+  const subdomain = getSubdomain();
+
+  // For localhost development, use route-based URLs
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    if (!subdomain) return path;
+    return `/business/${subdomain}${path}`;
+  }
+
+  // For production, just return the path (subdomain is already in URL)
+  return path;
 }
