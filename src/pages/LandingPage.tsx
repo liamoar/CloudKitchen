@@ -9,16 +9,28 @@ import {
 import { supabase } from '../lib/supabase';
 import { validateSubdomain, buildSubdomainUrl } from '../lib/utils';
 
+interface Country {
+  id: string;
+  name: string;
+  slug: string;
+  short_name: string;
+  currency: string;
+  currency_symbol: string;
+}
+
 interface SubscriptionTier {
   id: string;
   name: string;
-  country: string;
-  country_name: string;
-  currency: string;
-  monthly_price: number;
+  country_id: string;
+  price: number;
+  days: number;
   product_limit: number;
-  order_limit_per_month: number;
-  storage_limit_mb: number;
+  orders_per_month: number;
+  storage_limit: number;
+  features: {
+    includes?: string[];
+    description?: string;
+  };
   trial_days: number;
 }
 
@@ -27,8 +39,9 @@ export function LandingPage() {
   const [showSignup, setShowSignup] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [countries, setCountries] = useState<Country[]>([]);
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
-  const [selectedCountry, setSelectedCountry] = useState('AE');
+  const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -38,62 +51,79 @@ export function LandingPage() {
     phone: '',
     email: '',
     password: '',
-    country: 'AE',
+    countryId: '',
     city: '',
-    tier: 'Basic'
+    tierId: ''
   });
 
   const [subdomainError, setSubdomainError] = useState('');
   const [checkingSubdomain, setCheckingSubdomain] = useState(false);
 
   useEffect(() => {
-    detectCountryByIP();
+    loadCountries();
   }, []);
 
   useEffect(() => {
-    loadTiers();
+    if (selectedCountry) {
+      loadTiers(selectedCountry.id);
+    }
   }, [selectedCountry]);
 
-  const detectCountryByIP = async () => {
+  const loadCountries = async () => {
+    const { data } = await supabase
+      .from('countries')
+      .select('*')
+      .eq('status', 'active')
+      .order('name');
+
+    if (data && data.length > 0) {
+      setCountries(data);
+      detectCountryByIP(data);
+    }
+  };
+
+  const detectCountryByIP = async (availableCountries: Country[]) => {
     try {
       const response = await fetch('https://ipapi.co/json/');
       const data = await response.json();
 
       if (data.country_code) {
-        const detectedCountry = data.country_code.toUpperCase();
+        const detectedCode = data.country_code.toUpperCase();
+        const matchedCountry = availableCountries.find(
+          c => c.short_name.toUpperCase() === detectedCode
+        );
 
-        if (detectedCountry === 'NP' || detectedCountry === 'AE') {
-          setSelectedCountry(detectedCountry);
-          setFormData(prev => ({ ...prev, country: detectedCountry }));
+        if (matchedCountry) {
+          setSelectedCountry(matchedCountry);
+          setFormData(prev => ({ ...prev, countryId: matchedCountry.id }));
         } else {
-          setSelectedCountry('AE');
-          setFormData(prev => ({ ...prev, country: 'AE' }));
+          setSelectedCountry(availableCountries[0]);
+          setFormData(prev => ({ ...prev, countryId: availableCountries[0].id }));
         }
+      } else {
+        setSelectedCountry(availableCountries[0]);
+        setFormData(prev => ({ ...prev, countryId: availableCountries[0].id }));
       }
     } catch (error) {
       console.error('Error detecting country:', error);
-      setSelectedCountry('AE');
+      setSelectedCountry(availableCountries[0]);
+      setFormData(prev => ({ ...prev, countryId: availableCountries[0].id }));
     }
   };
 
-  const loadTiers = async () => {
+  const loadTiers = async (countryId: string) => {
     const { data } = await supabase
       .from('subscription_tiers')
       .select('*')
-      .eq('country', selectedCountry)
+      .eq('country_id', countryId)
       .eq('is_active', true)
-      .order('monthly_price');
+      .order('price');
 
     if (data) {
       setTiers(data);
-    }
-  };
-
-  const getCurrencySymbol = (country: string) => {
-    switch (country) {
-      case 'AE': return 'AED';
-      case 'NP': return 'NPR';
-      default: return 'USD';
+      if (data.length > 0 && !formData.tierId) {
+        setFormData(prev => ({ ...prev, tierId: data[0].id }));
+      }
     }
   };
 
@@ -107,7 +137,7 @@ export function LandingPage() {
     setCheckingSubdomain(true);
     try {
       const { data, error } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('id')
         .eq('subdomain', subdomain.toLowerCase())
         .maybeSingle();
@@ -165,6 +195,12 @@ export function LandingPage() {
         return;
       }
 
+      if (!formData.countryId || !formData.tierId) {
+        setError('Please select a country and subscription plan');
+        setLoading(false);
+        return;
+      }
+
       const slug = formData.subdomain;
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -185,70 +221,35 @@ export function LandingPage() {
       const { data: owner } = await supabase
         .from('users')
         .select('*')
-        .eq('auth_id', authData.user.id)
-        .single();
+        .eq('id', authData.user.id)
+        .maybeSingle();
 
       if (!owner) throw new Error('Failed to create user profile');
 
-      const selectedTier = tiers.find(t => t.name === formData.tier);
+      const selectedTier = tiers.find(t => t.id === formData.tierId);
+      if (!selectedTier) throw new Error('Invalid subscription plan selected');
 
-      const { data: config } = await supabase
-        .from('subscription_configs')
-        .select('trial_days, currency')
-        .eq('country', formData.country)
-        .maybeSingle();
-
-      const trialDays = config?.trial_days || 15;
-      const currency = config?.currency || getCurrencySymbol(formData.country);
       const trialEndDate = new Date();
-      trialEndDate.setDate(trialEndDate.getDate() + trialDays);
+      trialEndDate.setDate(trialEndDate.getDate() + selectedTier.trial_days);
 
-      const { data: restaurant, error: restError } = await supabase
-        .from('restaurants')
+      const { data: business, error: businessError } = await supabase
+        .from('businesses')
         .insert({
           name: formData.businessName,
           slug: slug,
           subdomain: formData.subdomain.toLowerCase(),
           owner_id: owner.id,
-          currency: currency,
-          country: formData.country,
-          status: 'TRIAL',
-          trial_end_date: trialEndDate.toISOString(),
-          tier_id: selectedTier?.id
+          country_id: formData.countryId,
+          subscription_tier_id: formData.tierId,
+          status: 'trial',
+          trial_ends_at: trialEndDate.toISOString()
         })
         .select()
         .single();
 
-      if (restError) throw restError;
+      if (businessError) throw businessError;
 
-      await supabase.from('restaurant_settings').insert({
-        user_id: owner.id,
-        restaurant_id: restaurant.id,
-        name: formData.businessName,
-        address: '',
-        city: formData.city,
-        phone: formData.phone,
-        email: formData.email,
-        currency: currency,
-        enable_categories: true
-      });
-
-      const categories = [
-        { name: 'Featured', description: 'Featured items', display_order: 1 },
-        { name: 'Popular', description: 'Popular items', display_order: 2 },
-        { name: 'New Arrivals', description: 'New items', display_order: 3 },
-        { name: 'Special Offers', description: 'Special deals', display_order: 4 }
-      ];
-
-      for (const cat of categories) {
-        await supabase.from('product_categories').insert({
-          user_id: owner.id,
-          restaurant_id: restaurant.id,
-          ...cat
-        });
-      }
-
-      window.location.href = buildSubdomainUrl(formData.subdomain, '/admin');
+      window.location.href = buildSubdomainUrl(formData.subdomain.toLowerCase(), '/admin');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account');
     } finally {
@@ -256,10 +257,6 @@ export function LandingPage() {
     }
   };
 
-  const countryOptions = [
-    { code: 'AE', name: 'UAE', currency: 'AED' },
-    { code: 'NP', name: 'Nepal', currency: 'NPR' }
-  ];
 
   const features = [
     {
@@ -469,15 +466,20 @@ export function LandingPage() {
                     Country
                   </label>
                   <select
-                    value={formData.country}
+                    value={formData.countryId}
                     onChange={(e) => {
-                      setFormData({ ...formData, country: e.target.value });
-                      setSelectedCountry(e.target.value);
+                      const country = countries.find(c => c.id === e.target.value);
+                      if (country) {
+                        setFormData({ ...formData, countryId: e.target.value, tierId: '' });
+                        setSelectedCountry(country);
+                      }
                     }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    {countryOptions.map(opt => (
-                      <option key={opt.code} value={opt.code}>{opt.name} ({opt.currency})</option>
+                    {countries.map(country => (
+                      <option key={country.id} value={country.id}>
+                        {country.name} ({country.currency_symbol})
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -495,6 +497,25 @@ export function LandingPage() {
                     placeholder="Your City"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Subscription Plan
+                </label>
+                <select
+                  value={formData.tierId}
+                  onChange={(e) => setFormData({ ...formData, tierId: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select a plan</option>
+                  {tiers.map(tier => (
+                    <option key={tier.id} value={tier.id}>
+                      {tier.name} - {selectedCountry?.currency_symbol}{tier.price}/{tier.days} days
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -523,7 +544,7 @@ export function LandingPage() {
 
               <button
                 type="submit"
-                disabled={loading || !!subdomainError || checkingSubdomain || formData.subdomain.length < 3}
+                disabled={loading || !!subdomainError || checkingSubdomain || formData.subdomain.length < 3 || !formData.tierId}
                 className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white py-4 rounded-lg font-semibold text-lg transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Creating Your Business...' : 'Launch My Business'}
@@ -594,7 +615,7 @@ export function LandingPage() {
           <div className="flex items-center justify-center gap-6 mt-8 text-sm text-gray-600">
             <div className="flex items-center gap-2">
               <CheckCircle className="text-green-600" size={18} />
-              <span>15-day free trial</span>
+              <span>Free trial included</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="text-green-600" size={18} />
@@ -724,28 +745,31 @@ export function LandingPage() {
           <div className="inline-flex items-center gap-3 bg-white px-4 py-2 rounded-lg shadow-md border border-blue-100">
             <Globe size={20} className="text-blue-600" />
             <select
-              value={selectedCountry}
-              onChange={(e) => setSelectedCountry(e.target.value)}
+              value={selectedCountry?.id || ''}
+              onChange={(e) => {
+                const country = countries.find(c => c.id === e.target.value);
+                if (country) setSelectedCountry(country);
+              }}
               className="bg-transparent border-0 text-gray-900 font-medium focus:ring-0 cursor-pointer"
             >
-              {countryOptions.map(opt => (
-                <option key={opt.code} value={opt.code}>{opt.name}</option>
+              {countries.map(country => (
+                <option key={country.id} value={country.id}>{country.name}</option>
               ))}
             </select>
           </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-          {tiers.map((tier) => (
+          {tiers.map((tier, index) => (
             <div
               key={tier.id}
               className={`bg-white rounded-2xl p-8 shadow-xl border-2 ${
-                tier.name === 'Premium'
+                index === tiers.length - 1
                   ? 'border-blue-500 relative transform scale-105'
                   : 'border-gray-200'
               }`}
             >
-              {tier.name === 'Premium' && (
+              {index === tiers.length - 1 && (
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
                   <span className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-1 rounded-full text-sm font-semibold shadow-md">
                     Most Popular
@@ -756,9 +780,9 @@ export function LandingPage() {
               <div className="text-center mb-8">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">{tier.name}</h3>
                 <div className="flex items-baseline justify-center gap-2 mb-4">
-                  <span className="text-5xl font-bold text-gray-900">{tier.monthly_price}</span>
-                  <span className="text-xl text-gray-600">{tier.currency}</span>
-                  <span className="text-gray-500">/month</span>
+                  <span className="text-5xl font-bold text-gray-900">{tier.price}</span>
+                  <span className="text-xl text-gray-600">{selectedCountry?.currency_symbol}</span>
+                  <span className="text-gray-500">/{tier.days} days</span>
                 </div>
                 <p className="text-sm text-gray-500">{tier.trial_days} days free trial</p>
               </div>
@@ -773,13 +797,13 @@ export function LandingPage() {
                 <li className="flex items-start gap-3">
                   <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
                   <span className="text-gray-700">
-                    <strong>{tier.order_limit_per_month === -1 ? 'Unlimited' : tier.order_limit_per_month}</strong> Orders per month
+                    <strong>{tier.orders_per_month === -1 ? 'Unlimited' : tier.orders_per_month}</strong> Orders per month
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
                   <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
                   <span className="text-gray-700">
-                    <strong>{tier.storage_limit_mb >= 1024 ? `${tier.storage_limit_mb / 1024}GB` : `${tier.storage_limit_mb}MB`}</strong> Storage
+                    <strong>{tier.storage_limit >= 1024 ? `${tier.storage_limit / 1024}GB` : `${tier.storage_limit}MB`}</strong> Storage
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
@@ -802,27 +826,27 @@ export function LandingPage() {
                   <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
                   <span className="text-gray-700">Sales analytics & reports</span>
                 </li>
-                {tier.name === 'Premium' && (
-                  <>
-                    <li className="flex items-start gap-3">
-                      <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
-                      <span className="text-gray-700">Priority support</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <Star className="text-yellow-500 flex-shrink-0 mt-0.5" size={20} />
-                      <span className="text-gray-700 font-semibold">Unlimited everything</span>
-                    </li>
-                  </>
+                {tier.features?.includes && tier.features.includes.map((feature, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+                    <span className="text-gray-700">{feature}</span>
+                  </li>
+                ))}
+                {index === tiers.length - 1 && (
+                  <li className="flex items-start gap-3">
+                    <Star className="text-yellow-500 flex-shrink-0 mt-0.5" size={20} />
+                    <span className="text-gray-700 font-semibold">Best value for growing businesses</span>
+                  </li>
                 )}
               </ul>
 
               <button
                 onClick={() => {
-                  setFormData({ ...formData, tier: tier.name });
+                  setFormData({ ...formData, tierId: tier.id });
                   setShowSignup(true);
                 }}
                 className={`w-full py-4 rounded-lg font-semibold text-lg transition-all shadow-md hover:shadow-lg ${
-                  tier.name === 'Premium'
+                  index === tiers.length - 1
                     ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white'
                     : 'bg-gray-900 hover:bg-gray-800 text-white'
                 }`}
@@ -834,7 +858,7 @@ export function LandingPage() {
         </div>
 
         <p className="text-center text-gray-600 mt-12 text-lg">
-          <strong>15-day free trial</strong> on all plans. No credit card required. Cancel anytime.
+          <strong>Free trial</strong> on all plans. No credit card required. Cancel anytime.
         </p>
       </section>
 
