@@ -124,6 +124,7 @@ export function Checkout({ onBack }: CheckoutProps) {
 
   const lookupCustomer = async (phone: string) => {
     if (!phone || phone.length < 8 || !businessId) {
+      alert('Please enter a valid phone number (at least 8 digits)');
       return;
     }
 
@@ -154,27 +155,22 @@ export function Checkout({ onBack }: CheckoutProps) {
           setAddresses(customerAddresses);
           const defaultAddress = customerAddresses.find(a => a.is_default) || customerAddresses[0];
           setSelectedAddressId(defaultAddress.id);
+          setStep('details');
+        } else {
+          setStep('details');
         }
       } else {
         setCustomer(null);
         setAddresses([]);
+        setStep('details');
       }
     } catch (error) {
       console.error('Error looking up customer:', error);
+      alert('Failed to verify phone number. Please try again.');
     } finally {
       setCheckingCustomer(false);
     }
   };
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (phoneNumber && phoneNumber.length >= 8) {
-        lookupCustomer(phoneNumber);
-      }
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [phoneNumber, businessId]);
 
   const saveNewAddress = async (customerId: string) => {
     if (addresses.length >= 2) {
@@ -396,13 +392,18 @@ export function Checkout({ onBack }: CheckoutProps) {
                 placeholder="Enter your phone number"
               />
             </div>
+            {checkingCustomer && (
+              <div className="text-sm text-gray-600 text-center py-2">
+                Checking if you're a returning customer...
+              </div>
+            )}
             <button
               type="button"
-              onClick={lookupCustomer}
-              disabled={loading}
+              onClick={() => lookupCustomer(phoneNumber)}
+              disabled={checkingCustomer || !phoneNumber || phoneNumber.length < 8}
               className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition-colors disabled:bg-gray-400"
             >
-              {loading ? 'Checking...' : 'Continue'}
+              {checkingCustomer ? 'Verifying...' : 'Continue'}
             </button>
           </div>
         )}

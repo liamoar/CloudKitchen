@@ -33,6 +33,7 @@ export function EnhancedProductManagement() {
   const [showProductForm, setShowProductForm] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
   const [productForm, setProductForm] = useState({
     name: '',
     description: '',
@@ -747,44 +748,9 @@ export function EnhancedProductManagement() {
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <button
-                            onClick={async () => {
-                              setEditingProductId(product.id);
-                              setProductForm({
-                                name: product.name,
-                                description: product.description || '',
-                                price: product.price.toString(),
-                                stock_quantity: product.stock_quantity?.toString() || '0',
-                                image_url: product.image_url || '',
-                                category_id: product.category || '',
-                                is_active: product.is_available,
-                              });
-
-                              if (settings?.enable_multiple_sku) {
-                                const { data: variants } = await supabase
-                                  .from('product_variants')
-                                  .select('*')
-                                  .eq('product_id', product.id)
-                                  .order('created_at', { ascending: true });
-
-                                if (variants) {
-                                  setProductVariants(variants.map(v => ({
-                                    id: v.id,
-                                    sku_code: v.sku_code,
-                                    attributes: v.attributes as Record<string, string>,
-                                    price: v.price.toString(),
-                                    stock_quantity: v.stock_quantity?.toString() || '0',
-                                    is_active: v.is_active,
-                                    tempAttrKey: '',
-                                    tempAttrValue: '',
-                                  })));
-                                } else {
-                                  setProductVariants([]);
-                                }
-                              } else {
-                                setProductVariants([]);
-                              }
-
-                              setShowProductForm(true);
+                            onClick={() => {
+                              setEditingProduct(product);
+                              setShowWizard(true);
                             }}
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded"
                           >
@@ -936,13 +902,18 @@ export function EnhancedProductManagement() {
         <SimpleProductWizard
           businessId={restaurantId!}
           enableStock={settings?.enable_stock_management || false}
+          editingProduct={editingProduct}
           onSave={() => {
             setShowWizard(false);
+            setEditingProduct(null);
             loadProducts();
             checkProductLimit();
-            showNotification('Product added successfully!', 'success');
+            showNotification(editingProduct ? 'Product updated successfully!' : 'Product added successfully!', 'success');
           }}
-          onCancel={() => setShowWizard(false)}
+          onCancel={() => {
+            setShowWizard(false);
+            setEditingProduct(null);
+          }}
         />
       )}
 
