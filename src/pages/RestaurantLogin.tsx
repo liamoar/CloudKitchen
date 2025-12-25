@@ -26,23 +26,23 @@ export function RestaurantLogin() {
       return;
     }
 
-    const { data: restaurant } = await supabase
-      .from('restaurants')
-      .select('name, domain_status, status')
+    const { data: business } = await supabase
+      .from('businesses')
+      .select('name, is_subdomain_active, status')
       .eq('subdomain', subdomain)
       .maybeSingle();
 
-    if (!restaurant) {
+    if (!business) {
       window.location.href = getMainDomainUrl('/');
       return;
     }
 
-    if (restaurant.domain_status !== 'active' || restaurant.status === 'SUSPENDED') {
+    if (!business.is_subdomain_active || business.status === 'inactive' || business.status === 'cancelled') {
       window.location.href = getMainDomainUrl('/');
       return;
     }
 
-    setBusinessName(restaurant.name);
+    setBusinessName(business.name);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
