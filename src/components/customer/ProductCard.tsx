@@ -44,16 +44,36 @@ export function ProductCard({
     variants && variants.length > 0 ? variants[0] : null
   );
 
+  const getAttributeOptions = () => {
+    if (!variants) return {};
+    const options: Record<string, Set<string>> = {};
+
+    variants.forEach((variant) => {
+      Object.entries(variant.attributes).forEach(([key, value]) => {
+        if (!options[key]) {
+          options[key] = new Set();
+        }
+        options[key].add(value);
+      });
+    });
+
+    return Object.fromEntries(
+      Object.entries(options).map(([key, values]) => [key, Array.from(values)])
+    );
+  };
+
+  const attributeOptions = getAttributeOptions();
+  const hasValidVariants = settings?.enable_multiple_sku && variants && variants.length > 0 && Object.keys(attributeOptions).length > 0;
   const hasVariants = settings?.enable_multiple_sku && variants && variants.length > 0;
-  const currentPrice = hasVariants && selectedVariant ? selectedVariant.price : product.price;
+  const currentPrice = hasValidVariants && selectedVariant ? selectedVariant.price : product.price;
   const isOutOfStock = settings?.enable_stock_management
-    ? hasVariants
+    ? hasValidVariants
       ? selectedVariant?.stock_quantity === 0
       : product.stock_quantity === 0
     : false;
 
   const handleAddToCart = () => {
-    if (hasVariants && selectedVariant) {
+    if (hasValidVariants && selectedVariant) {
       addItem({
         id: selectedVariant.id,
         name: `${product.name} (${Object.values(selectedVariant.attributes).join(', ')})`,
@@ -80,26 +100,6 @@ export function ProductCard({
       navigate(`/product/${product.id}`);
     }
   };
-
-  const getAttributeOptions = () => {
-    if (!variants) return {};
-    const options: Record<string, Set<string>> = {};
-
-    variants.forEach((variant) => {
-      Object.entries(variant.attributes).forEach(([key, value]) => {
-        if (!options[key]) {
-          options[key] = new Set();
-        }
-        options[key].add(value);
-      });
-    });
-
-    return Object.fromEntries(
-      Object.entries(options).map(([key, values]) => [key, Array.from(values)])
-    );
-  };
-
-  const attributeOptions = hasVariants ? getAttributeOptions() : {};
 
   const selectVariantByAttributes = (attributeName: string, value: string) => {
     if (!variants) return;
@@ -145,7 +145,15 @@ export function ProductCard({
               </h3>
               <p className="text-gray-600 mb-4 line-clamp-2">{product.description}</p>
 
-              {hasVariants && selectedVariant && (
+              {hasVariants && !hasValidVariants && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-xs text-yellow-800">
+                    This product has variants but they are not configured correctly. Click "View" for details.
+                  </p>
+                </div>
+              )}
+
+              {hasValidVariants && selectedVariant && (
                 <div className="space-y-3 mb-4">
                   {Object.entries(attributeOptions).map(([attrName, values]) => (
                     <div key={attrName}>
@@ -242,7 +250,15 @@ export function ProductCard({
         </h3>
         <p className="text-sm text-gray-600 mb-4 line-clamp-2 flex-1">{product.description}</p>
 
-        {hasVariants && selectedVariant && (
+        {hasVariants && !hasValidVariants && (
+          <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-xs text-yellow-800">
+              Variants not configured. Click "View" for details.
+            </p>
+          </div>
+        )}
+
+        {hasValidVariants && selectedVariant && (
           <div className="space-y-3 mb-4">
             {Object.entries(attributeOptions).map(([attrName, values]) => (
               <div key={attrName}>

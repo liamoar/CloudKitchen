@@ -48,10 +48,9 @@ export function EnhancedProductManagement() {
     price: string;
     stock_quantity: string;
     is_active: boolean;
+    tempAttrKey: string;
+    tempAttrValue: string;
   }>>([]);
-
-  const [newAttributeKey, setNewAttributeKey] = useState('');
-  const [newAttributeValue, setNewAttributeValue] = useState('');
 
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
@@ -451,6 +450,8 @@ export function EnhancedProductManagement() {
       price: '',
       stock_quantity: '0',
       is_active: true,
+      tempAttrKey: '',
+      tempAttrValue: '',
     }]);
   };
 
@@ -469,18 +470,19 @@ export function EnhancedProductManagement() {
   };
 
   const addAttributeToVariant = (variantIndex: number) => {
-    if (!newAttributeKey || !newAttributeValue) {
+    const variant = productVariants[variantIndex];
+    if (!variant.tempAttrKey || !variant.tempAttrValue) {
       showNotification('Please enter both attribute name and value', 'error');
       return;
     }
     const updatedVariants = [...productVariants];
     updatedVariants[variantIndex].attributes = {
       ...updatedVariants[variantIndex].attributes,
-      [newAttributeKey]: newAttributeValue
+      [variant.tempAttrKey]: variant.tempAttrValue
     };
+    updatedVariants[variantIndex].tempAttrKey = '';
+    updatedVariants[variantIndex].tempAttrValue = '';
     setProductVariants(updatedVariants);
-    setNewAttributeKey('');
-    setNewAttributeValue('');
   };
 
   const removeAttributeFromVariant = (variantIndex: number, attributeKey: string) => {
@@ -776,6 +778,8 @@ export function EnhancedProductManagement() {
                                     price: v.price.toString(),
                                     stock_quantity: v.stock_quantity?.toString() || '0',
                                     is_active: v.is_active,
+                                    tempAttrKey: '',
+                                    tempAttrValue: '',
                                   })));
                                 } else {
                                   setProductVariants([]);
@@ -1078,7 +1082,9 @@ export function EnhancedProductManagement() {
                           )}
 
                           <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-2">Attributes (e.g., color, size)</label>
+                            <label className="block text-xs font-medium text-gray-700 mb-2">
+                              Attributes (e.g., size, color) - <span className="text-orange-600 font-semibold">Required for variant selection on storefront</span>
+                            </label>
                             <div className="flex flex-wrap gap-2 mb-2">
                               {Object.entries(variant.attributes).map(([key, value]) => (
                                 <span key={key} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
@@ -1092,26 +1098,31 @@ export function EnhancedProductManagement() {
                                   </button>
                                 </span>
                               ))}
+                              {Object.keys(variant.attributes).length === 0 && (
+                                <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+                                  No attributes added - customers won't be able to select this variant!
+                                </span>
+                              )}
                             </div>
                             <div className="flex gap-2">
                               <input
                                 type="text"
-                                value={newAttributeKey}
-                                onChange={(e) => setNewAttributeKey(e.target.value)}
+                                value={variant.tempAttrKey}
+                                onChange={(e) => updateVariant(index, 'tempAttrKey', e.target.value)}
                                 className="flex-1 px-3 py-1.5 border rounded-lg text-sm"
-                                placeholder="Attribute name (e.g., color)"
+                                placeholder="Attribute name (e.g., size)"
                               />
                               <input
                                 type="text"
-                                value={newAttributeValue}
-                                onChange={(e) => setNewAttributeValue(e.target.value)}
+                                value={variant.tempAttrValue}
+                                onChange={(e) => updateVariant(index, 'tempAttrValue', e.target.value)}
                                 className="flex-1 px-3 py-1.5 border rounded-lg text-sm"
-                                placeholder="Value (e.g., red)"
+                                placeholder="Value (e.g., Small)"
                               />
                               <button
                                 type="button"
                                 onClick={() => addAttributeToVariant(index)}
-                                className="px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
+                                className="px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm whitespace-nowrap"
                               >
                                 <Plus size={16} />
                               </button>
