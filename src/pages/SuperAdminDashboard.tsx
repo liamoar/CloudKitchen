@@ -5,7 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../lib/utils';
 import { Building2, DollarSign, Clock, CheckCircle, XCircle, LogOut, Trash2, Ban, Package, ShoppingCart, Edit2, Eye, EyeOff, Globe, MessageCircle } from 'lucide-react';
 import PaymentApproval from '../components/superadmin/PaymentApproval';
-import CountryTierManagement from '../components/superadmin/CountryTierManagement';
+import { CountryManagement } from '../components/superadmin/CountryManagement';
+import { TierManagement } from '../components/superadmin/TierManagement';
 import { SupportChatManagement } from '../components/superadmin/SupportChatManagement';
 
 interface Restaurant {
@@ -65,7 +66,7 @@ interface CountryOption {
 export function SuperAdminDashboard() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'tiers' | 'chat'>('restaurants');
+  const [activeTab, setActiveTab] = useState<'restaurants' | 'payments' | 'sales' | 'countries' | 'tiers' | 'chat'>('restaurants');
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [salesStats, setSalesStats] = useState<SalesStats>({
     platformRevenueByCurrency: [],
@@ -102,16 +103,18 @@ export function SuperAdminDashboard() {
 
   const loadCountries = async () => {
     try {
-      const { data: tiers } = await supabase
-        .from('subscription_tiers')
-        .select('country, country_name, currency')
-        .order('country_name');
+      const { data: countries } = await supabase
+        .from('countries')
+        .select('id, name, short_name, currency')
+        .eq('status', 'active')
+        .order('name');
 
-      if (tiers) {
-        const uniqueCountries = Array.from(
-          new Map(tiers.map(t => [t.country, t])).values()
-        );
-        setCountries(uniqueCountries);
+      if (countries) {
+        setCountries(countries.map(c => ({
+          country: c.short_name,
+          country_name: c.name,
+          currency: c.currency
+        })));
       }
     } catch (error) {
       console.error('Error loading countries:', error);
@@ -121,59 +124,128 @@ export function SuperAdminDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
+      console.log('Loading data for tab:', activeTab);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Current session:', session?.user?.id);
+
+      const { data: currentUser } = await supabase
+        .from('users')
+        .select('id, auth_id, role, email')
+        .eq('auth_id', session?.user?.id || '')
+        .maybeSingle();
+
+      console.log('Current user:', currentUser);
+
       if (activeTab === 'restaurants') {
-        const { data: statusData } = await supabase
-          .from('restaurant_subscription_status')
-          .select('*')
+        const { data: businessesData, error: businessesError } = await supabase
+          .from('businesses')
+          .select(`
+            id,
+            name,
+            slug,
+            subdomain,
+            is_subdomain_active,
+            owner_id,
+            status,
+            trial_ends_at,
+            current_period_starts_at,
+            current_period_ends_at,
+            created_at,
+            countries!inner(
+              name,
+              short_name,
+              currency
+            ),
+            subscription_tiers!businesses_subscription_tier_id_fkey(
+              name,
+              price,
+              days,
+              product_limit,
+              orders_per_month,
+              trial_days
+            )
+          `)
           .order('created_at', { ascending: false });
 
+        if (businessesError) {
+          console.error('Error loading businesses:', businessesError);
+          setLoading(false);
+          return;
+        }
+
+        console.log('Loaded businesses:', businessesData);
+
+        if (!businessesData || businessesData.length === 0) {
+          console.log('No businesses found');
+          setRestaurants([]);
+          setLoading(false);
+          return;
+        }
+
         const restaurantsWithDetails = await Promise.all(
-          (statusData || []).map(async (restaurant) => {
+          (businessesData || []).map(async (business) => {
             const now = new Date();
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-            const [ordersData, productsData, ownerData] = await Promise.all([
+            const [ordersData, productsData, ownerResult] = await Promise.all([
               supabase
                 .from('orders')
                 .select('id', { count: 'exact' })
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', business.id)
                 .gte('created_at', startOfMonth.toISOString())
                 .neq('status', 'CANCELLED'),
               supabase
                 .from('products')
                 .select('id', { count: 'exact' })
-                .eq('restaurant_id', restaurant.id),
+                .eq('business_id', business.id),
               supabase
-                .from('restaurants')
-                .select('owner_id, subdomain, domain_status')
-                .eq('id', restaurant.id)
+                .from('users')
+                .select('name, email, phone')
+                .eq('id', business.owner_id)
                 .maybeSingle()
-                .then(async (res) => {
-                  if (res.data) {
-                    const userData = await supabase
-                      .from('users')
-                      .select('name, email, phone')
-                      .eq('id', res.data.owner_id)
-                      .maybeSingle();
-                    return { ...res.data, owner: userData.data };
-                  }
-                  return res.data;
-                })
             ]);
 
+            console.log('Owner query for business', business.name, ':', ownerResult);
+            const ownerData = ownerResult.data;
+
+            const trialDaysRemaining = business.trial_ends_at
+              ? Math.ceil((new Date(business.trial_ends_at).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+              : null;
+
+            const subscriptionDaysRemaining = business.current_period_ends_at
+              ? Math.ceil((new Date(business.current_period_ends_at).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+              : null;
+
             return {
-              ...restaurant,
+              id: business.id,
+              name: business.name,
+              slug: business.slug,
+              subdomain: business.subdomain,
+              currency: business.countries?.currency || 'USD',
+              country: business.countries?.short_name || '',
+              status: business.status,
+              domain_status: business.is_subdomain_active ? 'active' : 'inactive',
+              trial_end_date: business.trial_ends_at,
+              trial_ends_at: business.trial_ends_at,
+              subscription_end_date: business.current_period_ends_at,
+              subscription_ends_at: business.current_period_ends_at,
+              is_payment_overdue: false,
+              created_at: business.created_at,
               current_month_orders: ordersData.count || 0,
               current_product_count: productsData.count || 0,
-              subdomain: ownerData?.subdomain || '',
-              domain_status: ownerData?.domain_status || '',
-              owner: ownerData?.owner || { name: '', email: '', phone: '' },
-              tier: {
-                name: restaurant.tier_name || 'No Tier',
-                order_limit_per_month: restaurant.order_limit_per_month || 0,
-                product_limit: restaurant.product_limit || 0,
-                trial_days: restaurant.trial_days || 0
-              }
+              trial_days_remaining: trialDaysRemaining || 0,
+              subscription_days_remaining: subscriptionDaysRemaining || 0,
+              ending_soon: (trialDaysRemaining !== null && trialDaysRemaining < 7) ||
+                          (subscriptionDaysRemaining !== null && subscriptionDaysRemaining < 7),
+              days_until_action_needed: trialDaysRemaining || subscriptionDaysRemaining || 0,
+              owner: ownerData || { name: '', email: '', phone: '' },
+              tier: business.subscription_tiers ? {
+                name: business.subscription_tiers.name,
+                order_limit_per_month: business.subscription_tiers.orders_per_month || 0,
+                product_limit: business.subscription_tiers.product_limit || 0,
+                trial_days: business.subscription_tiers.trial_days || 0
+              } : null
             };
           })
         );
@@ -192,41 +264,59 @@ export function SuperAdminDashboard() {
           .from('subscription_tiers')
           .select('*');
 
-        let restaurantsQuery = supabase
-          .from('restaurants')
-          .select('id, status, created_at, country, current_tier_id');
+        let businessesQuery = supabase
+          .from('businesses')
+          .select(`
+            id,
+            status,
+            created_at,
+            subscription_tier_id,
+            countries!inner(
+              id,
+              short_name,
+              currency
+            )
+          `);
 
         if (selectedCountry !== 'ALL') {
-          restaurantsQuery = restaurantsQuery.eq('country', selectedCountry);
+          businessesQuery = businessesQuery.eq('countries.short_name', selectedCountry);
         }
 
-        const { data: restaurantsData } = await restaurantsQuery;
+        const { data: businessesData } = await businessesQuery;
 
         let invoicesQuery = supabase
           .from('payment_invoices')
-          .select('*, restaurant:restaurants!inner(country)')
+          .select(`
+            *,
+            business:businesses!inner(
+              id,
+              countries!inner(
+                short_name
+              )
+            )
+          `)
           .eq('status', 'APPROVED');
-
-        if (selectedCountry !== 'ALL') {
-          invoicesQuery = invoicesQuery.eq('restaurant.country', selectedCountry);
-        }
 
         const { data: invoicesData } = await invoicesQuery;
 
-        if (restaurantsData && tiers) {
+        const filteredInvoices = selectedCountry !== 'ALL'
+          ? invoicesData?.filter(inv => inv.business?.countries?.short_name === selectedCountry)
+          : invoicesData;
+
+        if (businessesData && tiers) {
           const tierMap = new Map(tiers.map(t => [t.id, t]));
 
           let currency = 'USD';
           if (selectedCountry !== 'ALL') {
-            const countryTier = tiers.find(t => t.country === selectedCountry);
-            currency = countryTier?.currency || 'USD';
+            const selectedCountryData = businessesData[0]?.countries;
+            currency = selectedCountryData?.currency || 'USD';
           }
 
           let totalRevenue = 0;
           let totalRenewals = 0;
 
-          if (invoicesData) {
-            invoicesData.forEach(invoice => {
+          if (filteredInvoices) {
+            filteredInvoices.forEach(invoice => {
               totalRevenue += Number(invoice.amount);
               if (invoice.invoice_type === 'RENEWAL') {
                 totalRenewals++;
@@ -234,26 +324,27 @@ export function SuperAdminDashboard() {
             });
           }
 
-          const activeRestaurants = restaurantsData.filter(r => r.status === 'ACTIVE').length;
-          const trialRestaurants = restaurantsData.filter(r => r.status === 'TRIAL').length;
+          const activeRestaurants = businessesData.filter(b => b.status?.toUpperCase() === 'ACTIVE').length;
+          const trialRestaurants = businessesData.filter(b => b.status?.toUpperCase() === 'TRIAL').length;
 
-          const newRestaurantsToday = restaurantsData.filter(
-            r => new Date(r.created_at) >= startOfToday
+          const newRestaurantsToday = businessesData.filter(
+            b => new Date(b.created_at) >= startOfToday
           ).length;
 
-          const newRestaurantsThisMonth = restaurantsData.filter(
-            r => new Date(r.created_at) >= startOfMonth
+          const newRestaurantsThisMonth = businessesData.filter(
+            b => new Date(b.created_at) >= startOfMonth
           ).length;
 
           let monthlyRecurringRevenue = 0;
           let basicTierBusinesses = 0;
           let premiumTierBusinesses = 0;
 
-          restaurantsData.forEach(restaurant => {
-            if (restaurant.status === 'ACTIVE' && restaurant.current_tier_id) {
-              const tier = tierMap.get(restaurant.current_tier_id);
+          businessesData.forEach(business => {
+            if (business.status?.toUpperCase() === 'ACTIVE' && business.subscription_tier_id) {
+              const tier = tierMap.get(business.subscription_tier_id);
               if (tier) {
-                monthlyRecurringRevenue += Number(tier.monthly_price);
+                const monthlyPrice = Number(tier.price) * (30 / (tier.days || 30));
+                monthlyRecurringRevenue += monthlyPrice;
 
                 if (tier.name.toLowerCase().includes('basic')) {
                   basicTierBusinesses++;
@@ -264,17 +355,17 @@ export function SuperAdminDashboard() {
             }
           });
 
-          const restaurantIds = restaurantsData.map(r => r.id);
+          const businessIds = businessesData.map(b => b.id);
 
           const [productsData, ordersData] = await Promise.all([
             supabase
               .from('products')
               .select('id')
-              .in('restaurant_id', restaurantIds.length > 0 ? restaurantIds : ['']),
+              .in('business_id', businessIds.length > 0 ? businessIds : ['']),
             supabase
               .from('orders')
               .select('id, status')
-              .in('restaurant_id', restaurantIds.length > 0 ? restaurantIds : [''])
+              .in('business_id', businessIds.length > 0 ? businessIds : [''])
               .gte('created_at', startOfMonth.toISOString())
           ]);
 
@@ -304,16 +395,16 @@ export function SuperAdminDashboard() {
   };
 
 
-  const deactivateBusiness = async (restaurantId: string) => {
+  const deactivateBusiness = async (businessId: string) => {
     if (!confirm('Are you sure you want to deactivate this business? They will not be able to operate until reactivated.')) {
       return;
     }
 
     try {
       await supabase
-        .from('restaurants')
-        .update({ domain_status: 'suspended', status: 'SUSPENDED' })
-        .eq('id', restaurantId);
+        .from('businesses')
+        .update({ is_subdomain_active: false, status: 'SUSPENDED' })
+        .eq('id', businessId);
       loadData();
     } catch (error) {
       console.error('Error deactivating business:', error);
@@ -366,7 +457,7 @@ export function SuperAdminDashboard() {
     }
   };
 
-  const deleteBusiness = async (restaurantId: string) => {
+  const deleteBusiness = async (businessId: string) => {
     if (!confirm('Are you sure you want to DELETE this business? This will permanently remove all data including orders, products, and settings. This action cannot be undone!')) {
       return;
     }
@@ -378,18 +469,18 @@ export function SuperAdminDashboard() {
     }
 
     try {
-      const { data: restaurant } = await supabase
-        .from('restaurants')
+      const { data: business } = await supabase
+        .from('businesses')
         .select('owner_id')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .maybeSingle();
 
-      const ownerId = restaurant?.owner_id;
+      const ownerId = business?.owner_id;
 
       const { data: orders } = await supabase
         .from('orders')
         .select('id')
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
 
       if (orders && orders.length > 0) {
         const orderIds = orders.map(o => o.id);
@@ -398,89 +489,64 @@ export function SuperAdminDashboard() {
           .from('order_items')
           .delete()
           .in('order_id', orderIds);
-
-        await supabase
-          .from('order_tracking_tokens')
-          .delete()
-          .in('order_id', orderIds);
       }
 
       await supabase
         .from('orders')
         .delete()
-        .eq('restaurant_id', restaurantId);
-
-      const { data: bundles } = await supabase
-        .from('bundles')
-        .select('id')
-        .eq('restaurant_id', restaurantId);
-
-      if (bundles && bundles.length > 0) {
-        const bundleIds = bundles.map(b => b.id);
-
-        await supabase
-          .from('bundle_products')
-          .delete()
-          .in('bundle_id', bundleIds);
-      }
-
-      await supabase
-        .from('bundles')
-        .delete()
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
 
       await supabase
         .from('products')
         .delete()
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
 
       await supabase
-        .from('product_categories')
+        .from('customers')
         .delete()
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
 
       await supabase
-        .from('offers')
+        .from('riders')
         .delete()
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
 
       await supabase
-        .from('featured_products')
+        .from('business_settings')
         .delete()
-        .eq('restaurant_id', restaurantId);
-
-      await supabase
-        .from('restaurant_settings')
-        .delete()
-        .eq('restaurant_id', restaurantId);
-
-      await supabase
-        .from('delivery_riders')
-        .delete()
-        .eq('restaurant_id', restaurantId);
-
-      await supabase
-        .from('payment_receipts')
-        .delete()
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
 
       await supabase
         .from('payment_invoices')
         .delete()
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
+
+      const { data: supportChats } = await supabase
+        .from('support_chats')
+        .select('id')
+        .eq('business_id', businessId);
+
+      if (supportChats && supportChats.length > 0) {
+        const chatIds = supportChats.map(c => c.id);
+
+        await supabase
+          .from('support_messages')
+          .delete()
+          .in('chat_id', chatIds);
+      }
 
       await supabase
-        .from('support_messages')
+        .from('support_chats')
         .delete()
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
 
-      const { error: restaurantError } = await supabase
-        .from('restaurants')
+      const { error: businessError } = await supabase
+        .from('businesses')
         .delete()
-        .eq('id', restaurantId);
+        .eq('id', businessId);
 
-      if (restaurantError) {
-        throw restaurantError;
+      if (businessError) {
+        throw businessError;
       }
 
       if (ownerId) {
@@ -524,7 +590,8 @@ export function SuperAdminDashboard() {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    const statusUpper = status?.toUpperCase();
+    switch (statusUpper) {
       case 'TRIAL': return 'bg-blue-100 text-blue-800';
       case 'ACTIVE': return 'bg-green-100 text-green-800';
       case 'SUSPENDED': return 'bg-red-100 text-red-800';
@@ -592,6 +659,17 @@ export function SuperAdminDashboard() {
             Payments
           </button>
           <button
+            onClick={() => setActiveTab('countries')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
+              activeTab === 'countries'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Globe size={20} />
+            Countries
+          </button>
+          <button
             onClick={() => setActiveTab('tiers')}
             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
               activeTab === 'tiers'
@@ -599,8 +677,8 @@ export function SuperAdminDashboard() {
                 : 'bg-white text-gray-700 hover:bg-gray-50'
             }`}
           >
-            <Globe size={20} />
-            Countries & Tiers
+            <Package size={20} />
+            Subscription Tiers
           </button>
           <button
             onClick={() => setActiveTab('chat')}
@@ -652,7 +730,7 @@ export function SuperAdminDashboard() {
                     </thead>
                     <tbody className="divide-y">
                       {restaurants.map((restaurant) => {
-                        const daysLeft = restaurant.status === 'TRIAL'
+                        const daysLeft = restaurant.status?.toUpperCase() === 'TRIAL'
                           ? restaurant.trial_days_remaining
                           : restaurant.subscription_days_remaining;
                         const orderLimit = restaurant.tier?.order_limit_per_month || 0;
@@ -685,7 +763,7 @@ export function SuperAdminDashboard() {
                             </td>
                             <td className="px-6 py-4">
                               <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(restaurant.status)}`}>
-                                {restaurant.status}
+                                {restaurant.status?.toUpperCase()}
                               </span>
                             </td>
                             <td className="px-6 py-4">
@@ -888,8 +966,12 @@ export function SuperAdminDashboard() {
               </div>
             )}
 
+            {activeTab === 'countries' && (
+              <CountryManagement />
+            )}
+
             {activeTab === 'tiers' && (
-              <CountryTierManagement />
+              <TierManagement />
             )}
 
             {activeTab === 'chat' && (
