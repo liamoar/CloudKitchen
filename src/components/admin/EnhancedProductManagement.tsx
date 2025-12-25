@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, CreditCard as Edit2, Trash2, Search, Download, Upload, ChevronLeft, ChevronRight, Grid2x2 as Grid, Table as TableIcon, X as XIcon } from 'lucide-react';
+import { Plus, CreditCard as Edit2, Trash2, Search, Download, Upload, ChevronLeft, ChevronRight, Grid2x2 as Grid, Table as TableIcon, X as XIcon, Package } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../lib/utils';
 import type { Product, ProductCategory, RestaurantSettings } from '../../lib/database.types';
+import { SimpleProductWizard } from './SimpleProductWizard';
 
 interface ProductLimit {
   can_add: boolean;
@@ -30,6 +31,7 @@ export function EnhancedProductManagement() {
   const [productLimit, setProductLimit] = useState<ProductLimit | null>(null);
 
   const [showProductForm, setShowProductForm] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [productForm, setProductForm] = useState({
     name: '',
@@ -641,13 +643,7 @@ export function EnhancedProductManagement() {
                     showNotification(`Product limit reached! Your plan (${productLimit.tier_name}) allows ${productLimit.limit} products. Please upgrade to add more.`, 'error');
                     return;
                   }
-                  setShowProductForm(true);
-                  setEditingProductId(null);
-                  setProductForm({
-                    name: '', description: '', price: '', stock_quantity: '',
-                    image_url: '', category_id: '', is_active: true,
-                  });
-                  setProductVariants([]);
+                  setShowWizard(true);
                 }}
                 disabled={productLimit ? !productLimit.can_add : false}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
@@ -935,6 +931,20 @@ export function EnhancedProductManagement() {
           </>
         )}
       </div>
+
+      {showWizard && (
+        <SimpleProductWizard
+          businessId={restaurantId!}
+          enableStock={settings?.enable_stock_management || false}
+          onSave={() => {
+            setShowWizard(false);
+            loadProducts();
+            checkProductLimit();
+            showNotification('Product added successfully!', 'success');
+          }}
+          onCancel={() => setShowWizard(false)}
+        />
+      )}
 
       {showProductForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
