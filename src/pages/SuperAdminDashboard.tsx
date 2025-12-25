@@ -188,7 +188,7 @@ export function SuperAdminDashboard() {
             const now = new Date();
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-            const [ordersData, productsData, ownerData] = await Promise.all([
+            const [ordersData, productsData, ownerResult] = await Promise.all([
               supabase
                 .from('orders')
                 .select('id', { count: 'exact' })
@@ -205,6 +205,9 @@ export function SuperAdminDashboard() {
                 .eq('id', business.owner_id)
                 .maybeSingle()
             ]);
+
+            console.log('Owner query for business', business.name, ':', ownerResult);
+            const ownerData = ownerResult.data;
 
             const trialDaysRemaining = business.trial_ends_at
               ? Math.ceil((new Date(business.trial_ends_at).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))

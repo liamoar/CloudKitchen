@@ -83,6 +83,13 @@ export function LandingPage() {
   };
 
   const detectCountryByIP = async (availableCountries: Country[]) => {
+    const getDefaultCountry = () => {
+      const uaeCountry = availableCountries.find(
+        c => c.short_name.toUpperCase() === 'UAE' || c.short_name.toUpperCase() === 'AE'
+      );
+      return uaeCountry || availableCountries[0];
+    };
+
     try {
       const response = await fetch('https://ipapi.co/json/');
       const data = await response.json();
@@ -97,17 +104,20 @@ export function LandingPage() {
           setSelectedCountry(matchedCountry);
           setFormData(prev => ({ ...prev, countryId: matchedCountry.id }));
         } else {
-          setSelectedCountry(availableCountries[0]);
-          setFormData(prev => ({ ...prev, countryId: availableCountries[0].id }));
+          const defaultCountry = getDefaultCountry();
+          setSelectedCountry(defaultCountry);
+          setFormData(prev => ({ ...prev, countryId: defaultCountry.id }));
         }
       } else {
-        setSelectedCountry(availableCountries[0]);
-        setFormData(prev => ({ ...prev, countryId: availableCountries[0].id }));
+        const defaultCountry = getDefaultCountry();
+        setSelectedCountry(defaultCountry);
+        setFormData(prev => ({ ...prev, countryId: defaultCountry.id }));
       }
     } catch (error) {
       console.error('Error detecting country:', error);
-      setSelectedCountry(availableCountries[0]);
-      setFormData(prev => ({ ...prev, countryId: availableCountries[0].id }));
+      const defaultCountry = getDefaultCountry();
+      setSelectedCountry(defaultCountry);
+      setFormData(prev => ({ ...prev, countryId: defaultCountry.id }));
     }
   };
 
