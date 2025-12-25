@@ -61,28 +61,51 @@ export function Checkout({ onBack }: CheckoutProps) {
 
   useEffect(() => {
     const loadRestaurant = async () => {
-      if (!subdomain) return;
+      try {
+        let business;
 
-      const { data: business } = await supabase
-        .from('businesses')
-        .select('id, countries!inner(currency_symbol)')
-        .eq('subdomain', subdomain)
-        .maybeSingle();
+        if (subdomain) {
+          const { data, error } = await supabase
+            .from('businesses')
+            .select('id, countries!inner(currency_symbol)')
+            .eq('subdomain', subdomain)
+            .maybeSingle();
 
-      if (business) {
-        setBusinessId(business.id);
-        setCurrency(business.countries?.currency_symbol || 'USD');
+          if (error) {
+            console.error('Error loading business by subdomain:', error);
+            return;
+          }
+          business = data;
+        } else {
+          const { data, error } = await supabase
+            .from('businesses')
+            .select('id, countries!inner(currency_symbol)')
+            .maybeSingle();
 
-        const { data: settings } = await supabase
-          .from('business_settings')
-          .select('minimum_order_value, delivery_charges')
-          .eq('business_id', business.id)
-          .maybeSingle();
-
-        if (settings) {
-          setMinimumOrderAmount(settings.minimum_order_value || 0);
-          setDeliveryFee(settings.delivery_charges || 0);
+          if (error) {
+            console.error('Error loading business:', error);
+            return;
+          }
+          business = data;
         }
+
+        if (business) {
+          setBusinessId(business.id);
+          setCurrency(business.countries?.currency_symbol || 'USD');
+
+          const { data: settings } = await supabase
+            .from('business_settings')
+            .select('minimum_order_value, delivery_charges')
+            .eq('business_id', business.id)
+            .maybeSingle();
+
+          if (settings) {
+            setMinimumOrderAmount(settings.minimum_order_value || 0);
+            setDeliveryFee(settings.delivery_charges || 0);
+          }
+        }
+      } catch (error) {
+        console.error('Error in loadRestaurant:', error);
       }
     };
 

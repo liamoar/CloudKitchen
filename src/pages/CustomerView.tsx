@@ -7,6 +7,7 @@ import { BundleCard } from '../components/customer/BundleCard';
 import { Cart } from '../components/customer/Cart';
 import { Checkout } from '../components/customer/Checkout';
 import { useCart } from '../contexts/CartContext';
+import { getSubdomain } from '../lib/utils';
 
 interface RestaurantInfo {
   id: string;
@@ -67,10 +68,16 @@ export function CustomerView() {
 
   const loadData = async () => {
     try {
-      const { data: business } = await supabase
+      const subdomain = getSubdomain();
+      let businessQuery = supabase
         .from('businesses')
-        .select('id, name, address, countries!inner(currency_symbol)')
-        .maybeSingle();
+        .select('id, name, subdomain, countries!inner(currency_symbol)');
+
+      if (subdomain) {
+        businessQuery = businessQuery.eq('subdomain', subdomain);
+      }
+
+      const { data: business } = await businessQuery.maybeSingle();
 
       if (business) {
         const { data: businessSettings } = await supabase
