@@ -126,7 +126,7 @@ export function RestaurantSettings() {
           show_product_images: true,
           enable_stock_management: true,
           enable_categories: false,
-          enable_skus: false,
+          enable_multiple_sku: false,
           opening_hours: daysOfWeek.reduce((acc, day) => ({
             ...acc,
             [day]: { open: '09:00', close: '22:00' },

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Search, Download, Upload, ChevronLeft, ChevronRight, Grid, Table as TableIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Download, Upload, ChevronLeft, ChevronRight, Grid, Table as TableIcon, X as XIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../lib/utils';
@@ -40,6 +40,18 @@ export function EnhancedProductManagement() {
     category_id: '',
     is_active: true,
   });
+
+  const [productVariants, setProductVariants] = useState<Array<{
+    id?: string;
+    sku_code: string;
+    attributes: Record<string, string>;
+    price: string;
+    stock_quantity: string;
+    is_active: boolean;
+  }>>([]);
+
+  const [newAttributeKey, setNewAttributeKey] = useState('');
+  const [newAttributeValue, setNewAttributeValue] = useState('');
 
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
@@ -349,39 +361,73 @@ export function EnhancedProductManagement() {
       }
     }
 
+    if (settings?.enable_multiple_sku && productVariants.length === 0) {
+      showNotification('Please add at least one variant with SKU and price', 'error');
+      return;
+    }
+
     const productData: any = {
       business_id: restaurantId,
       name: productForm.name,
       description: productForm.description,
-      price: parseFloat(productForm.price),
+      price: settings?.enable_multiple_sku ? 0 : parseFloat(productForm.price),
       is_active: productForm.is_active,
     };
 
     if (settings?.enable_categories && productForm.category_id) {
       productData.category_id = productForm.category_id;
     }
-    if (settings?.show_product_images) {
+    if (settings?.show_product_images && !settings?.enable_multiple_sku) {
       productData.image_url = productForm.image_url || null;
     }
-    if (settings?.enable_stock_management) {
+    if (settings?.enable_stock_management && !settings?.enable_multiple_sku) {
       productData.stock_quantity = parseInt(productForm.stock_quantity) || 0;
     }
 
-    let error;
-    if (editingProductId) {
-      ({ error } = await supabase
-        .from('products')
-        .update(productData)
-        .eq('id', editingProductId));
-    } else {
-      ({ error } = await supabase
-        .from('products')
-        .insert(productData));
-    }
+    try {
+      let productId = editingProductId;
 
-    if (error) {
-      showNotification('Failed to save product', 'error');
-    } else {
+      if (editingProductId) {
+        const { error } = await supabase
+          .from('products')
+          .update(productData)
+          .eq('id', editingProductId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from('products')
+          .insert(productData)
+          .select()
+          .single();
+        if (error) throw error;
+        productId = data.id;
+      }
+
+      if (settings?.enable_multiple_sku && productId) {
+        if (editingProductId) {
+          const { error: deleteError } = await supabase
+            .from('product_variants')
+            .delete()
+            .eq('product_id', productId);
+          if (deleteError) throw deleteError;
+        }
+
+        const variantsToInsert = productVariants.map(variant => ({
+          business_id: restaurantId,
+          product_id: productId,
+          sku_code: variant.sku_code,
+          attributes: variant.attributes,
+          price: parseFloat(variant.price),
+          stock_quantity: settings?.enable_stock_management ? parseInt(variant.stock_quantity) || 0 : 0,
+          is_active: variant.is_active,
+        }));
+
+        const { error: variantsError } = await supabase
+          .from('product_variants')
+          .insert(variantsToInsert);
+        if (variantsError) throw variantsError;
+      }
+
       showNotification('Product saved successfully', 'success');
       setShowProductForm(false);
       setEditingProductId(null);
@@ -389,9 +435,60 @@ export function EnhancedProductManagement() {
         name: '', description: '', price: '', stock_quantity: '',
         image_url: '', category_id: '', is_active: true,
       });
+      setProductVariants([]);
       loadProducts();
       checkProductLimit();
+    } catch (error) {
+      showNotification('Failed to save product', 'error');
+      console.error(error);
     }
+  };
+
+  const addVariant = () => {
+    setProductVariants([...productVariants, {
+      sku_code: '',
+      attributes: {},
+      price: '',
+      stock_quantity: '0',
+      is_active: true,
+    }]);
+  };
+
+  const updateVariant = (index: number, field: string, value: any) => {
+    const updatedVariants = [...productVariants];
+    if (field === 'attributes') {
+      updatedVariants[index].attributes = value;
+    } else {
+      (updatedVariants[index] as any)[field] = value;
+    }
+    setProductVariants(updatedVariants);
+  };
+
+  const removeVariant = (index: number) => {
+    setProductVariants(productVariants.filter((_, i) => i !== index));
+  };
+
+  const addAttributeToVariant = (variantIndex: number) => {
+    if (!newAttributeKey || !newAttributeValue) {
+      showNotification('Please enter both attribute name and value', 'error');
+      return;
+    }
+    const updatedVariants = [...productVariants];
+    updatedVariants[variantIndex].attributes = {
+      ...updatedVariants[variantIndex].attributes,
+      [newAttributeKey]: newAttributeValue
+    };
+    setProductVariants(updatedVariants);
+    setNewAttributeKey('');
+    setNewAttributeValue('');
+  };
+
+  const removeAttributeFromVariant = (variantIndex: number, attributeKey: string) => {
+    const updatedVariants = [...productVariants];
+    const newAttributes = { ...updatedVariants[variantIndex].attributes };
+    delete newAttributes[attributeKey];
+    updatedVariants[variantIndex].attributes = newAttributes;
+    setProductVariants(updatedVariants);
   };
 
   const handleSaveCategory = async (e: React.FormEvent) => {
@@ -548,6 +645,7 @@ export function EnhancedProductManagement() {
                     name: '', description: '', price: '', stock_quantity: '',
                     image_url: '', category_id: '', is_active: true,
                   });
+                  setProductVariants([]);
                 }}
                 disabled={productLimit ? !productLimit.can_add : false}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
@@ -651,7 +749,7 @@ export function EnhancedProductManagement() {
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               setEditingProductId(product.id);
                               setProductForm({
                                 name: product.name,
@@ -662,6 +760,30 @@ export function EnhancedProductManagement() {
                                 category_id: product.category_id || '',
                                 is_active: product.is_active,
                               });
+
+                              if (settings?.enable_multiple_sku) {
+                                const { data: variants } = await supabase
+                                  .from('product_variants')
+                                  .select('*')
+                                  .eq('product_id', product.id)
+                                  .order('created_at', { ascending: true });
+
+                                if (variants) {
+                                  setProductVariants(variants.map(v => ({
+                                    id: v.id,
+                                    sku_code: v.sku_code,
+                                    attributes: v.attributes as Record<string, string>,
+                                    price: v.price.toString(),
+                                    stock_quantity: v.stock_quantity?.toString() || '0',
+                                    is_active: v.is_active,
+                                  })));
+                                } else {
+                                  setProductVariants([]);
+                                }
+                              } else {
+                                setProductVariants([]);
+                              }
+
                               setShowProductForm(true);
                             }}
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded"
@@ -834,17 +956,19 @@ export function EnhancedProductManagement() {
                   rows={3}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={productForm.price}
-                  onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
+              {!settings?.enable_multiple_sku && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={productForm.price}
+                    onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+              )}
               {settings?.enable_categories && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
@@ -871,7 +995,7 @@ export function EnhancedProductManagement() {
                   />
                 </div>
               )}
-              {settings?.enable_stock_management && (
+              {settings?.enable_stock_management && !settings?.enable_multiple_sku && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
                   <input
@@ -882,6 +1006,134 @@ export function EnhancedProductManagement() {
                   />
                 </div>
               )}
+
+              {settings?.enable_multiple_sku && (
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-gray-800">Product Variants (SKUs)</h4>
+                    <button
+                      type="button"
+                      onClick={addVariant}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+                    >
+                      <Plus size={16} />
+                      Add Variant
+                    </button>
+                  </div>
+
+                  {productVariants.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg">
+                      No variants added. Click "Add Variant" to create SKUs with different prices{settings?.enable_stock_management ? ' and stock levels' : ''}.
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {productVariants.map((variant, index) => (
+                        <div key={index} className="border rounded-lg p-4 bg-gray-50 space-y-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-medium text-gray-700">Variant {index + 1}</h5>
+                            <button
+                              type="button"
+                              onClick={() => removeVariant(index)}
+                              className="text-red-600 hover:bg-red-50 p-1 rounded"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">SKU Code *</label>
+                              <input
+                                type="text"
+                                required
+                                value={variant.sku_code}
+                                onChange={(e) => updateVariant(index, 'sku_code', e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                                placeholder="e.g., PROD-RED-M"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Price *</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                required
+                                value={variant.price}
+                                onChange={(e) => updateVariant(index, 'price', e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                              />
+                            </div>
+                          </div>
+
+                          {settings?.enable_stock_management && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Stock Quantity</label>
+                              <input
+                                type="number"
+                                value={variant.stock_quantity}
+                                onChange={(e) => updateVariant(index, 'stock_quantity', e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                              />
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-2">Attributes (e.g., color, size)</label>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              {Object.entries(variant.attributes).map(([key, value]) => (
+                                <span key={key} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                                  {key}: {value}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeAttributeFromVariant(index, key)}
+                                    className="hover:text-blue-900"
+                                  >
+                                    <XIcon size={12} />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={newAttributeKey}
+                                onChange={(e) => setNewAttributeKey(e.target.value)}
+                                className="flex-1 px-3 py-1.5 border rounded-lg text-sm"
+                                placeholder="Attribute name (e.g., color)"
+                              />
+                              <input
+                                type="text"
+                                value={newAttributeValue}
+                                onChange={(e) => setNewAttributeValue(e.target.value)}
+                                className="flex-1 px-3 py-1.5 border rounded-lg text-sm"
+                                placeholder="Value (e.g., red)"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => addAttributeToVariant(index)}
+                                className="px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
+                              >
+                                <Plus size={16} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={variant.is_active}
+                              onChange={(e) => updateVariant(index, 'is_active', e.target.checked)}
+                              className="w-4 h-4"
+                            />
+                            <label className="text-xs font-medium text-gray-700">Active</label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -898,6 +1150,7 @@ export function EnhancedProductManagement() {
                   onClick={() => {
                     setShowProductForm(false);
                     setEditingProductId(null);
+                    setProductVariants([]);
                   }}
                   className="px-4 py-2 border rounded-lg hover:bg-gray-50"
                 >
