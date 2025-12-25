@@ -1,47 +1,259 @@
-import { Plus } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Package } from 'lucide-react';
 import type { Product } from '../../lib/database.types';
 import { useCart } from '../../contexts/CartContext';
 import { formatCurrency } from '../../lib/utils';
 
+interface ProductVariant {
+  id: string;
+  product_id: string;
+  sku_code: string;
+  attributes: Record<string, string>;
+  price: number;
+  stock_quantity: number;
+  is_active: boolean;
+}
+
+interface Settings {
+  enable_categories: boolean;
+  enable_multiple_sku: boolean;
+  show_product_images: boolean;
+  enable_stock_management: boolean;
+}
+
 interface ProductCardProps {
   product: Product;
   currency?: string;
+  variants?: ProductVariant[];
+  settings?: Settings | null;
+  viewMode?: 'grid' | 'list';
 }
 
-export function ProductCard({ product, currency = 'AED' }: ProductCardProps) {
+export function ProductCard({
+  product,
+  currency = 'AED',
+  variants,
+  settings,
+  viewMode = 'grid',
+}: ProductCardProps) {
   const { addItem } = useCart();
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
+    variants && variants.length > 0 ? variants[0] : null
+  );
+
+  const hasVariants = settings?.enable_multiple_sku && variants && variants.length > 0;
+  const currentPrice = hasVariants && selectedVariant ? selectedVariant.price : product.price;
+  const isOutOfStock = settings?.enable_stock_management
+    ? hasVariants
+      ? selectedVariant?.stock_quantity === 0
+      : product.stock_quantity === 0
+    : false;
 
   const handleAddToCart = () => {
-    addItem({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      type: 'PRODUCT',
-    });
+    if (hasVariants && selectedVariant) {
+      addItem({
+        id: selectedVariant.id,
+        name: `${product.name} (${Object.values(selectedVariant.attributes).join(', ')})`,
+        price: selectedVariant.price,
+        type: 'PRODUCT',
+      });
+    } else {
+      addItem({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        type: 'PRODUCT',
+      });
+    }
   };
 
-  return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-      <div className="h-40 bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center">
-        <span className="text-5xl">🍔</span>
+  const getAttributeOptions = () => {
+    if (!variants) return {};
+    const options: Record<string, Set<string>> = {};
+
+    variants.forEach((variant) => {
+      Object.entries(variant.attributes).forEach(([key, value]) => {
+        if (!options[key]) {
+          options[key] = new Set();
+        }
+        options[key].add(value);
+      });
+    });
+
+    return Object.fromEntries(
+      Object.entries(options).map(([key, values]) => [key, Array.from(values)])
+    );
+  };
+
+  const attributeOptions = hasVariants ? getAttributeOptions() : {};
+
+  const selectVariantByAttributes = (attributeName: string, value: string) => {
+    if (!variants) return;
+
+    const newAttributes = {
+      ...(selectedVariant?.attributes || {}),
+      [attributeName]: value,
+    };
+
+    const matchingVariant = variants.find((v) => {
+      return Object.entries(newAttributes).every(
+        ([key, val]) => v.attributes[key] === val
+      );
+    });
+
+    if (matchingVariant) {
+      setSelectedVariant(matchingVariant);
+    }
+  };
+
+  if (viewMode === 'list') {
+    return (
+      <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all overflow-hidden border border-gray-100">
+        <div className="flex flex-col sm:flex-row">
+          <div className="sm:w-48 h-48 bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center flex-shrink-0">
+            {settings?.show_product_images && product.image_url ? (
+              <img
+                src={product.image_url}
+                alt={product.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <Package size={64} className="text-blue-300" />
+            )}
+          </div>
+          <div className="flex-1 p-6 flex flex-col sm:flex-row justify-between gap-4">
+            <div className="flex-1">
+              <h3 className="font-bold text-xl text-gray-900 mb-2">{product.name}</h3>
+              <p className="text-gray-600 mb-4 line-clamp-2">{product.description}</p>
+
+              {hasVariants && selectedVariant && (
+                <div className="space-y-3 mb-4">
+                  {Object.entries(attributeOptions).map(([attrName, values]) => (
+                    <div key={attrName}>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 capitalize">
+                        {attrName}
+                      </label>
+                      <div className="flex gap-2 flex-wrap">
+                        {values.map((value) => (
+                          <button
+                            key={value}
+                            onClick={() => selectVariantByAttributes(attrName, value)}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                              selectedVariant.attributes[attrName] === value
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {value}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {selectedVariant && (
+                    <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-lg inline-block">
+                      SKU: {selectedVariant.sku_code}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {isOutOfStock && (
+                <span className="inline-block px-3 py-1 bg-red-100 text-red-700 text-sm font-medium rounded-lg">
+                  Out of Stock
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-col justify-between items-end gap-4">
+              <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                {formatCurrency(currentPrice, currency)}
+              </span>
+              <button
+                onClick={handleAddToCart}
+                disabled={isOutOfStock}
+                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg hover:shadow-xl disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed font-semibold"
+              >
+                <Plus size={20} />
+                Add to Cart
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="p-4">
-        <h3 className="font-semibold text-lg text-gray-800">{product.name}</h3>
-        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{product.description}</p>
-        <div className="flex items-center justify-between mt-4">
-          <span className="text-xl font-bold text-orange-600">{formatCurrency(product.price, currency)}</span>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all overflow-hidden border border-gray-100 flex flex-col">
+      <div className="h-48 bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center relative overflow-hidden">
+        {settings?.show_product_images && product.image_url ? (
+          <img
+            src={product.image_url}
+            alt={product.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <Package size={64} className="text-blue-300" />
+        )}
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+            <span className="bg-red-500 text-white px-4 py-2 rounded-lg font-semibold">
+              Out of Stock
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="p-5 flex flex-col flex-1">
+        <h3 className="font-bold text-lg text-gray-900 mb-2 line-clamp-1">{product.name}</h3>
+        <p className="text-sm text-gray-600 mb-4 line-clamp-2 flex-1">{product.description}</p>
+
+        {hasVariants && selectedVariant && (
+          <div className="space-y-3 mb-4">
+            {Object.entries(attributeOptions).map(([attrName, values]) => (
+              <div key={attrName}>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5 capitalize">
+                  {attrName}
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {values.map((value) => (
+                    <button
+                      key={value}
+                      onClick={() => selectVariantByAttributes(attrName, value)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        selectedVariant.attributes[attrName] === value
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {selectedVariant && (
+              <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded inline-block">
+                SKU: {selectedVariant.sku_code}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mt-auto pt-4">
+          <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+            {formatCurrency(currentPrice, currency)}
+          </span>
           <button
             onClick={handleAddToCart}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-            disabled={product.stock_quantity === 0}
+            disabled={isOutOfStock}
+            className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg hover:shadow-xl disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed font-semibold"
           >
             <Plus size={18} />
             Add
           </button>
         </div>
-        {product.stock_quantity === 0 && (
-          <p className="text-red-500 text-sm mt-2">Out of stock</p>
-        )}
       </div>
     </div>
   );

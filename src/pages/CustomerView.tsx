@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, Phone, MapPin, Clock, Truck, Mail } from 'lucide-react';
+import { ShoppingCart, Phone, MapPin, Clock, Mail, Search, Grid, List, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Product, Bundle } from '../lib/database.types';
 import { ProductCard } from '../components/customer/ProductCard';
@@ -9,9 +9,11 @@ import { Checkout } from '../components/customer/Checkout';
 import { useCart } from '../contexts/CartContext';
 
 interface RestaurantInfo {
+  id: string;
   name: string;
   phone: string;
   address: string;
+  city: string;
   delivery_fee: number;
   minimum_order: number;
   is_open: boolean;
@@ -20,12 +22,43 @@ interface RestaurantInfo {
   support_phone: string;
 }
 
+interface ProductVariant {
+  id: string;
+  product_id: string;
+  sku_code: string;
+  attributes: Record<string, string>;
+  price: number;
+  stock_quantity: number;
+  is_active: boolean;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  description: string | null;
+  display_order: number;
+}
+
+interface Settings {
+  enable_categories: boolean;
+  enable_multiple_sku: boolean;
+  show_product_images: boolean;
+  enable_stock_management: boolean;
+}
+
 export function CustomerView() {
   const [products, setProducts] = useState<Product[]>([]);
   const [bundles, setBundles] = useState<Bundle[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [variants, setVariants] = useState<Record<string, ProductVariant[]>>({});
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [restaurantInfo, setRestaurantInfo] = useState<RestaurantInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [showCartSidebar, setShowCartSidebar] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const { items } = useCart();
 
   useEffect(() => {
@@ -34,39 +67,87 @@ export function CustomerView() {
 
   const loadData = async () => {
     try {
-      const { data: restaurant } = await supabase
+      const { data: business } = await supabase
         .from('businesses')
         .select('id, name, address, countries!inner(currency_symbol)')
         .maybeSingle();
 
-      if (restaurant) {
-        const { data: settings } = await supabase
+      if (business) {
+        const { data: businessSettings } = await supabase
           .from('business_settings')
-          .select('support_phone, support_email, address, city')
-          .eq('business_id', restaurant.id)
+          .select('*')
+          .eq('business_id', business.id)
           .maybeSingle();
 
-        if (settings || restaurant) {
+        if (businessSettings) {
           setRestaurantInfo({
-            name: restaurant.name || 'Our Store',
-            phone: settings?.support_phone || '',
-            address: settings?.address || restaurant.address || '',
+            id: business.id,
+            name: business.name || 'Our Store',
+            phone: businessSettings.support_phone || '',
+            address: businessSettings.address || business.address || '',
+            city: businessSettings.city || '',
             delivery_fee: 0,
             minimum_order: 0,
             is_open: true,
-            currency: restaurant.countries?.currency_symbol || 'USD',
-            support_email: settings?.support_email || '',
-            support_phone: settings?.support_phone || '',
+            currency: business.countries?.currency_symbol || 'USD',
+            support_email: businessSettings.support_email || '',
+            support_phone: businessSettings.support_phone || '',
+          });
+
+          setSettings({
+            enable_categories: businessSettings.enable_categories || false,
+            enable_multiple_sku: businessSettings.enable_multiple_sku || false,
+            show_product_images: businessSettings.show_product_images || false,
+            enable_stock_management: businessSettings.enable_stock_management || false,
           });
         }
 
-        const [productsRes, bundlesRes] = await Promise.all([
-          supabase.from('products').select('*').eq('business_id', restaurant.id).eq('is_active', true),
-          supabase.from('bundles').select('*').eq('business_id', restaurant.id).eq('is_active', true),
+        const [productsRes, bundlesRes, categoriesRes] = await Promise.all([
+          supabase
+            .from('products')
+            .select('*')
+            .eq('business_id', business.id)
+            .eq('is_available', true)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('bundles')
+            .select('*')
+            .eq('business_id', business.id)
+            .eq('is_active', true),
+          businessSettings?.enable_categories
+            ? supabase
+                .from('product_categories')
+                .select('*')
+                .eq('business_id', business.id)
+                .eq('is_active', true)
+                .order('display_order', { ascending: true })
+            : Promise.resolve({ data: [] }),
         ]);
 
-        if (productsRes.data) setProducts(productsRes.data);
+        if (productsRes.data) {
+          setProducts(productsRes.data);
+
+          if (businessSettings?.enable_multiple_sku) {
+            const { data: allVariants } = await supabase
+              .from('product_variants')
+              .select('*')
+              .eq('business_id', business.id)
+              .eq('is_active', true);
+
+            if (allVariants) {
+              const variantsByProduct: Record<string, ProductVariant[]> = {};
+              allVariants.forEach((variant) => {
+                if (!variantsByProduct[variant.product_id]) {
+                  variantsByProduct[variant.product_id] = [];
+                }
+                variantsByProduct[variant.product_id].push(variant);
+              });
+              setVariants(variantsByProduct);
+            }
+          }
+        }
         if (bundlesRes.data) setBundles(bundlesRes.data);
+        if (categoriesRes.data) setCategories(categoriesRes.data);
       }
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -75,10 +156,19 @@ export function CustomerView() {
     }
   };
 
+  const filteredProducts = products.filter((product) => {
+    const matchesSearch =
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory =
+      selectedCategory === 'all' || product.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-lg text-gray-600">Loading menu...</div>
+        <div className="text-lg text-gray-600">Loading...</div>
       </div>
     );
   }
@@ -94,88 +184,213 @@ export function CustomerView() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm sticky top-0 z-10">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
+      <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-30 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <ShoppingBag size={32} className="text-orange-500" />
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">{restaurantInfo?.name || 'Our Store'}</h1>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
+                <span className="text-white text-xl font-bold">{restaurantInfo?.name.charAt(0) || 'S'}</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+                  {restaurantInfo?.name || 'Our Store'}
+                </h1>
                 {restaurantInfo && (
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                      {restaurantInfo.address && (
-                        <span className="flex items-center gap-1">
-                          <MapPin size={14} />
-                          {restaurantInfo.address}
-                        </span>
-                      )}
-                      <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        restaurantInfo.is_open ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}>
-                        <Clock size={12} />
-                        {restaurantInfo.is_open ? 'Open Now' : 'Closed'}
+                  <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs md:text-sm text-gray-600 mt-1">
+                    {restaurantInfo.city && (
+                      <span className="flex items-center gap-1">
+                        <MapPin size={14} className="text-gray-400" />
+                        <span className="truncate max-w-[150px] md:max-w-none">{restaurantInfo.city}</span>
                       </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                      {restaurantInfo.support_phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone size={14} />
-                          {restaurantInfo.support_phone}
-                        </span>
-                      )}
-                      {restaurantInfo.support_email && (
-                        <span className="flex items-center gap-1">
-                          <Mail size={14} />
-                          {restaurantInfo.support_email}
-                        </span>
-                      )}
-                    </div>
+                    )}
+                    <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                      restaurantInfo.is_open
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      <Clock size={12} />
+                      {restaurantInfo.is_open ? 'Open' : 'Closed'}
+                    </span>
+                    {restaurantInfo.support_phone && (
+                      <span className="hidden md:flex items-center gap-1">
+                        <Phone size={14} className="text-gray-400" />
+                        {restaurantInfo.support_phone}
+                      </span>
+                    )}
+                    {restaurantInfo.support_email && (
+                      <span className="hidden lg:flex items-center gap-1">
+                        <Mail size={14} className="text-gray-400" />
+                        {restaurantInfo.support_email}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
             </div>
-            <div className="relative">
-              <div className="bg-orange-500 text-white px-4 py-2 rounded-full font-semibold">
-                Cart: {items.length}
-              </div>
-            </div>
+
+            <button
+              onClick={() => setShowCartSidebar(true)}
+              className="relative bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center gap-2"
+            >
+              <ShoppingCart size={20} />
+              <span className="hidden sm:inline">Cart</span>
+              {items.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-lg">
+                  {items.length}
+                </span>
+              )}
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-            {bundles.length > 0 && (
-              <section>
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">Special Combos</h2>
-                <div className="grid sm:grid-cols-2 gap-6">
-                  {bundles.map((bundle) => (
-                    <BundleCard key={bundle.id} bundle={bundle} />
-                  ))}
-                </div>
-              </section>
-            )}
+      <main className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+        <div className="mb-6 space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all shadow-sm"
+              />
+            </div>
 
-            <section>
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Menu</h2>
-              <div className="grid sm:grid-cols-2 gap-6">
-                {products.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
-            </section>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-3 rounded-xl border transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                }`}
+              >
+                <Grid size={20} />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-3 rounded-xl border transition-all ${
+                  viewMode === 'list'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                }`}
+              >
+                <List size={20} />
+              </button>
+            </div>
           </div>
 
-          <div className="lg:col-span-1">
-            <div className="sticky top-24">
-              <Cart onCheckout={() => setShowCheckout(true)} />
+          {settings?.enable_categories && categories.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              <button
+                onClick={() => setSelectedCategory('all')}
+                className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap transition-all ${
+                  selectedCategory === 'all'
+                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                }`}
+              >
+                All Items
+              </button>
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap transition-all ${
+                    selectedCategory === category.id
+                      ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
+                      : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                  }`}
+                >
+                  {category.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {bundles.length > 0 && selectedCategory === 'all' && (
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Special Combos</h2>
+              <div className="h-1 flex-1 ml-4 bg-gradient-to-r from-blue-500 to-transparent rounded-full"></div>
+            </div>
+            <div className={`grid gap-6 ${
+              viewMode === 'grid'
+                ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                : 'grid-cols-1'
+            }`}>
+              {bundles.map((bundle) => (
+                <BundleCard key={bundle.id} bundle={bundle} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">
+              {selectedCategory === 'all' ? 'All Products' : categories.find(c => c.id === selectedCategory)?.name}
+            </h2>
+            <div className="h-1 flex-1 ml-4 bg-gradient-to-r from-cyan-500 to-transparent rounded-full"></div>
+          </div>
+
+          {filteredProducts.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+              <p className="text-gray-500 text-lg">No products found</p>
+            </div>
+          ) : (
+            <div className={`grid gap-6 ${
+              viewMode === 'grid'
+                ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                : 'grid-cols-1'
+            }`}>
+              {filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  currency={restaurantInfo?.currency}
+                  variants={variants[product.id]}
+                  settings={settings}
+                  viewMode={viewMode}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+
+      {showCartSidebar && (
+        <div className="fixed inset-0 z-40 flex">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowCartSidebar(false)}
+          ></div>
+          <div className="ml-auto relative bg-white w-full max-w-md shadow-2xl overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between z-10">
+              <h2 className="text-xl font-bold text-gray-900">Shopping Cart</h2>
+              <button
+                onClick={() => setShowCartSidebar(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-4">
+              <Cart
+                onCheckout={() => {
+                  setShowCartSidebar(false);
+                  setShowCheckout(true);
+                }}
+                currency={restaurantInfo?.currency}
+              />
             </div>
           </div>
         </div>
-      </main>
+      )}
     </div>
   );
 }
