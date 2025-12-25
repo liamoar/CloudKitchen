@@ -47,7 +47,7 @@ export function SalesAnalytics({ currency = 'USD' }: SalesAnalyticsProps) {
   const loadRestaurantId = async () => {
     if (!user?.id) return;
     const { data } = await supabase
-      .from('restaurants')
+      .from('businesses')
       .select('id')
       .eq('owner_id', user.id)
       .maybeSingle();
@@ -84,7 +84,7 @@ export function SalesAnalytics({ currency = 'USD' }: SalesAnalyticsProps) {
     const { data: orders } = await supabase
       .from('orders')
       .select('*')
-      .eq('restaurant_id', restaurantId)
+      .eq('business_id', restaurantId)
       .gte('created_at', startDate)
       .neq('status', 'CANCELLED');
 

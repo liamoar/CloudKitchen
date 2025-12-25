@@ -88,7 +88,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
 
     try {
       const { data: restaurantBasic } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('id, owner_id')
         .eq('owner_id', user.id)
         .maybeSingle();
@@ -96,7 +96,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
       if (!restaurantBasic) return;
 
       const { data: restaurantData } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('*')
         .eq('id', restaurantBasic.id)
         .maybeSingle();
@@ -155,7 +155,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
             *,
             tier:subscription_tiers(name)
           `)
-          .eq('restaurant_id', restaurantData.id)
+          .eq('business_id', restaurantData.id)
           .order('created_at', { ascending: false });
 
         if (invoicesData) {
@@ -175,7 +175,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
     try {
       setMessage(null);
       const { data, error } = await supabase.rpc('request_tier_change', {
-        p_restaurant_id: restaurant.id,
+        p_business_id: restaurant.id,
         p_new_tier_id: newTier.id
       });
 
@@ -201,7 +201,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
 
     try {
       const { data, error } = await supabase.rpc('pause_subscription', {
-        p_restaurant_id: restaurant.id
+        p_business_id: restaurant.id
       });
 
       if (error) throw error;
@@ -223,7 +223,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
 
     try {
       const { data, error } = await supabase.rpc('resume_subscription', {
-        p_restaurant_id: restaurant.id
+        p_business_id: restaurant.id
       });
 
       if (error) throw error;
@@ -245,7 +245,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
 
     try {
       const { data, error } = await supabase.rpc('cancel_subscription', {
-        p_restaurant_id: restaurant.id,
+        p_business_id: restaurant.id,
         p_reason: cancellationReason || null
       });
 
@@ -295,7 +295,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
 
         if (updateError) throw updateError;
       } else {
-        const invoiceType = restaurant.subscription_status === 'TRIAL'
+        const invoiceType = restaurant.subscription_status === 'trial'
           ? 'TRIAL_CONVERSION'
           : currentTier && selectedTier.id !== currentTier.id
           ? 'UPGRADE'
@@ -317,7 +317,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
         const { error: insertError } = await supabase
           .from('payment_invoices')
           .insert({
-            restaurant_id: restaurant.id,
+            business_id: restaurant.id,
             tier_id: selectedTier.id,
             invoice_number: invoiceNumber,
             invoice_type: invoiceType,
@@ -349,14 +349,12 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { bg: string; text: string; label: string }> = {
-      TRIAL: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Trial Period' },
-      ACTIVE: { bg: 'bg-green-100', text: 'text-green-700', label: 'Active' },
-      OVERDUE: { bg: 'bg-red-100', text: 'text-red-700', label: 'Payment Overdue' },
-      SUSPENDED: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Suspended' },
-      PAUSED: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Paused' },
-      CANCELLED: { bg: 'bg-gray-200', text: 'text-gray-800', label: 'Cancelled' },
+      trial: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Trial Period' },
+      active: { bg: 'bg-green-100', text: 'text-green-700', label: 'Active' },
+      inactive: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Inactive' },
+      cancelled: { bg: 'bg-gray-200', text: 'text-gray-800', label: 'Cancelled' },
     };
-    const badge = badges[status] || badges.TRIAL;
+    const badge = badges[status] || badges.trial;
     return (
       <span className={`px-3 py-1 rounded-full text-sm font-medium ${badge.bg} ${badge.text}`}>
         {badge.label}
@@ -393,10 +391,10 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
   const pendingInvoices = invoices.filter(inv => ['PENDING', 'REJECTED'].includes(inv.status));
   const trialDaysLeft = restaurant.trial_days_remaining || 0;
   const subscriptionDaysLeft = restaurant.subscription_days_remaining || 0;
-  const canChangeTier = ['ACTIVE', 'TRIAL'].includes(restaurant.subscription_status) && currentTier && pendingInvoices.length === 0;
-  const canCancel = ['ACTIVE', 'TRIAL', 'OVERDUE', 'PAUSED'].includes(restaurant.subscription_status);
-  const canPause = restaurant.subscription_status === 'ACTIVE';
-  const canResume = restaurant.subscription_status === 'PAUSED';
+  const canChangeTier = ['active', 'trial'].includes(restaurant.subscription_status) && currentTier && pendingInvoices.length === 0;
+  const canCancel = ['active', 'trial', 'inactive'].includes(restaurant.subscription_status);
+  const canPause = restaurant.subscription_status === 'active';
+  const canResume = restaurant.subscription_status === 'inactive';
 
   return (
     <div className="space-y-6">
@@ -464,7 +462,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {restaurant.subscription_status === 'TRIAL' && restaurant.trial_ends_at && (
+          {restaurant.subscription_status === 'trial' && restaurant.trial_ends_at && (
             <div className={`${trialDaysLeft <= 2 ? 'bg-red-50' : 'bg-blue-50'} rounded-lg p-4`}>
               <div className="flex items-center gap-3 mb-2">
                 <Clock className={trialDaysLeft <= 2 ? 'text-red-600' : 'text-blue-600'} size={24} />
@@ -482,7 +480,7 @@ export function SubscriptionStatus({ currency }: SubscriptionStatusProps) {
             </div>
           )}
 
-          {restaurant.subscription_status === 'ACTIVE' && restaurant.subscription_ends_at && (
+          {restaurant.subscription_status === 'active' && restaurant.subscription_ends_at && (
             <div className={`${subscriptionDaysLeft <= 5 ? 'bg-orange-50' : 'bg-green-50'} rounded-lg p-4`}>
               <div className="flex items-center gap-3 mb-2">
                 <Calendar className={subscriptionDaysLeft <= 5 ? 'text-orange-600' : 'text-green-600'} size={24} />

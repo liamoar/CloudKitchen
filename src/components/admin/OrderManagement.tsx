@@ -25,7 +25,7 @@ interface Restaurant {
   slug: string;
   is_payment_overdue: boolean;
   status: string;
-  restaurant_currency: string;
+  currency: string;
 }
 
 interface Rider {
@@ -63,7 +63,7 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
   const [notification, setNotification] = useState<{message: string; type: 'success' | 'error'} | null>(null);
   const [orderLimit, setOrderLimit] = useState<OrderLimit | null>(null);
 
-  const currency = propCurrency || restaurant?.restaurant_currency || 'USD';
+  const currency = propCurrency || restaurant?.currency || 'USD';
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -114,13 +114,17 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
     if (!user?.id) return;
 
     const { data } = await supabase
-      .from('restaurants')
-      .select('id, slug, is_payment_overdue, status, restaurant_currency')
+      .from('businesses')
+      .select('id, slug, is_payment_overdue, status, countries!inner(currency_symbol)')
       .eq('owner_id', user.id)
       .maybeSingle();
 
     if (data) {
-      setRestaurant(data);
+      const restaurant = {
+        ...data,
+        currency: data.countries?.currency_symbol || 'USD'
+      };
+      setRestaurant(restaurant);
       loadRiders(data.id);
     }
   };
@@ -129,7 +133,7 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
     const { data } = await supabase
       .from('delivery_riders')
       .select('id, name, phone, is_active')
-      .eq('restaurant_id', restaurantId)
+      .eq('business_id', restaurantId)
       .eq('is_active', true)
       .order('name');
 
@@ -141,7 +145,7 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
   const checkOrderLimit = async () => {
     if (!restaurant?.id) return;
     const { data, error } = await supabase.rpc('check_order_limit', {
-      restaurant_uuid: restaurant.id
+      business_uuid: restaurant.id
     });
     if (data && !error) {
       setOrderLimit(data);
@@ -154,7 +158,7 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
     const { data: ordersData } = await supabase
       .from('orders')
       .select('*')
-      .eq('restaurant_id', restaurant.id)
+      .eq('business_id', restaurant.id)
       .order('created_at', { ascending: false });
 
     if (ordersData) {
@@ -188,7 +192,7 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
               .from('orders')
               .select('id', { count: 'exact', head: true })
               .eq('customer_id', order.customer_id)
-              .eq('restaurant_id', restaurant.id);
+              .eq('business_id', restaurant.id);
 
             customerOrderCount = count || 0;
             isNewCustomer = customerOrderCount === 1;
@@ -313,7 +317,7 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
     saveScrollPosition();
     
     try {
-      const { error } = await supabase.from('orders').update({ status }).eq('id', orderId).eq('restaurant_id', restaurant.id);
+      const { error } = await supabase.from('orders').update({ status }).eq('id', orderId).eq('business_id', restaurant.id);
       if (error) throw error;
       showNotification('Order status updated successfully!', 'success');
       loadOrders();
@@ -333,7 +337,7 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
     saveScrollPosition();
     
     try {
-      const { error } = await supabase.from('orders').update({ payment_confirmed: confirmed }).eq('id', orderId).eq('restaurant_id', restaurant.id);
+      const { error } = await supabase.from('orders').update({ payment_confirmed: confirmed }).eq('id', orderId).eq('business_id', restaurant.id);
       if (error) throw error;
       showNotification(`Payment ${confirmed ? 'confirmed' : 'unconfirmed'} successfully!`, 'success');
       loadOrders();
@@ -357,7 +361,7 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
         .from('orders')
         .update({ assigned_rider_id: riderId })
         .eq('id', orderId)
-        .eq('restaurant_id', restaurant.id);
+        .eq('business_id', restaurant.id);
 
       const tokenValue = `${orderId}-rider-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const expiresAt = new Date();

@@ -33,15 +33,15 @@ export function CustomerView() {
   const loadData = async () => {
     try {
       const { data: restaurant } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('id, currency, is_open, delivery_fee, minimum_order')
         .maybeSingle();
 
       if (restaurant) {
         const { data: settings } = await supabase
-          .from('restaurant_settings')
+          .from('business_settings')
           .select('name, phone, address')
-          .eq('restaurant_id', restaurant.id)
+          .eq('business_id', restaurant.id)
           .maybeSingle();
 
         if (settings) {
@@ -57,8 +57,8 @@ export function CustomerView() {
         }
 
         const [productsRes, bundlesRes] = await Promise.all([
-          supabase.from('products').select('*').eq('restaurant_id', restaurant.id).eq('is_active', true),
-          supabase.from('bundles').select('*').eq('restaurant_id', restaurant.id).eq('is_active', true),
+          supabase.from('products').select('*').eq('business_id', restaurant.id).eq('is_active', true),
+          supabase.from('bundles').select('*').eq('business_id', restaurant.id).eq('is_active', true),
         ]);
 
         if (productsRes.data) setProducts(productsRes.data);

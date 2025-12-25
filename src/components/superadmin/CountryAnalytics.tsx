@@ -40,8 +40,8 @@ export default function CountryAnalytics() {
         .from('subscription_tiers')
         .select('*');
 
-      const { data: restaurants } = await supabase
-        .from('restaurants')
+      const { data: businesses } = await supabase
+        .from('businesses')
         .select('*');
 
       const { data: invoices } = await supabase
@@ -49,7 +49,7 @@ export default function CountryAnalytics() {
         .select('*')
         .eq('status', 'APPROVED');
 
-      if (!tiers || !restaurants) {
+      if (!tiers || !businesses) {
         setLoading(false);
         return;
       }
@@ -75,21 +75,21 @@ export default function CountryAnalytics() {
         }
       });
 
-      restaurants.forEach(restaurant => {
-        const tier = tiers.find(t => t.id === restaurant.current_tier_id);
+      businesses.forEach(business => {
+        const tier = tiers.find(t => t.id === business.current_tier_id);
         if (!tier) return;
 
-        const stats = countryMap.get(restaurant.country);
+        const stats = countryMap.get(business.country);
         if (!stats) return;
 
         stats.total_businesses++;
 
-        if (restaurant.subscription_status === 'ACTIVE') {
+        if (business.subscription_status === 'active' || business.subscription_status === 'ACTIVE') {
           stats.active_businesses++;
           stats.monthly_recurring_revenue += Number(tier.monthly_price);
         }
 
-        if (restaurant.subscription_status === 'TRIAL') {
+        if (business.subscription_status === 'trial' || business.subscription_status === 'TRIAL') {
           stats.trial_businesses++;
         }
 
@@ -99,7 +99,7 @@ export default function CountryAnalytics() {
           stats.premium_tier_businesses++;
         }
 
-        const createdAt = new Date(restaurant.created_at);
+        const createdAt = new Date(business.created_at);
         if (createdAt >= startOfMonth) {
           stats.new_businesses_this_month++;
         }
@@ -107,10 +107,10 @@ export default function CountryAnalytics() {
 
       if (invoices) {
         invoices.forEach(invoice => {
-          const restaurant = restaurants.find(r => r.id === invoice.restaurant_id);
-          if (!restaurant) return;
+          const business = businesses.find(b => b.id === invoice.business_id);
+          if (!business) return;
 
-          const stats = countryMap.get(restaurant.country);
+          const stats = countryMap.get(business.country);
           if (!stats) return;
 
           stats.total_revenue += Number(invoice.amount);

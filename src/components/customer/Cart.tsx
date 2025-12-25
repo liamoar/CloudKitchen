@@ -24,7 +24,7 @@ export function Cart({ onCheckout, currency = 'AED' }: CartProps) {
       if (!restaurantSlug) return;
 
       const { data } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('minimum_order_amount, delivery_fee_tiers, restaurant_currency')
         .eq('slug', restaurantSlug)
         .maybeSingle();

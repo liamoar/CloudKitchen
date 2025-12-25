@@ -45,7 +45,7 @@ export function SupportChatPopup() {
   const loadRestaurantId = async () => {
     if (!user?.id) return;
     const { data, error } = await supabase
-      .from('restaurants')
+      .from('businesses')
       .select('id')
       .eq('owner_id', user.id)
       .maybeSingle();
@@ -58,7 +58,7 @@ export function SupportChatPopup() {
     const { data, error } = await supabase
       .from('support_messages')
       .select('*')
-      .eq('restaurant_id', restaurantId)
+      .eq('business_id', restaurantId)
       .order('created_at', { ascending: true });
 
     if (error) {
@@ -84,7 +84,7 @@ export function SupportChatPopup() {
           event: '*',
           schema: 'public',
           table: 'support_messages',
-          filter: `restaurant_id=eq.${restaurantId}`,
+          filter: `business_id=eq.${restaurantId}`,
         },
         () => {
           loadMessages();
@@ -105,7 +105,7 @@ export function SupportChatPopup() {
     await supabase
       .from('support_messages')
       .update({ read: true })
-      .eq('restaurant_id', restaurantId)
+      .eq('business_id', restaurantId)
       .eq('sender_type', 'SUPPORT')
       .eq('read', false);
 
@@ -125,7 +125,7 @@ export function SupportChatPopup() {
       const { error } = await supabase
         .from('support_messages')
         .insert({
-          restaurant_id: restaurantId,
+          business_id: restaurantId,
           sender_type: 'BUSINESS',
           sender_id: user.id,
           message: newMessage.trim(),
