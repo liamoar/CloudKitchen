@@ -62,6 +62,88 @@ export function SimpleProductWizard({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (editingProduct) {
+      loadExistingProduct();
+    }
+  }, [editingProduct]);
+
+  const loadExistingProduct = async () => {
+    if (!editingProduct) return;
+
+    setProductName(editingProduct.name || '');
+    setDescription(editingProduct.description || '');
+    setSimpleImagePreview(editingProduct.image_url || '');
+
+    try {
+      const { data: existingVariants } = await supabase
+        .from('product_variants')
+        .select('*')
+        .eq('product_id', editingProduct.id)
+        .order('created_at');
+
+      if (existingVariants && existingVariants.length > 0) {
+        setHasOptions(true);
+
+        const variantIds = existingVariants.map(v => v.id);
+        const { data: variantImages } = await supabase
+          .from('product_variant_images')
+          .select('*')
+          .in('variant_id', variantIds)
+          .order('display_order');
+
+        const imagesByVariant: Record<string, string> = {};
+        if (variantImages) {
+          variantImages.forEach(img => {
+            if (!imagesByVariant[img.variant_id]) {
+              imagesByVariant[img.variant_id] = img.image_url;
+            }
+          });
+        }
+
+        const loadedVariants = existingVariants.map(v => ({
+          attributes: v.attributes,
+          price: v.price.toString(),
+          stock: v.stock_quantity.toString(),
+          sku: v.sku_code,
+          imageUrl: imagesByVariant[v.id],
+          imagePreview: imagesByVariant[v.id],
+        }));
+
+        setVariants(loadedVariants);
+
+        const allSamePrice = existingVariants.every(v => v.price === existingVariants[0].price);
+        setSamePrice(allSamePrice);
+        if (allSamePrice) {
+          setBasePrice(existingVariants[0].price.toString());
+        }
+
+        const hasImages = Object.keys(imagesByVariant).length > 0;
+        setNeedsDifferentImages(hasImages);
+
+        const attrs = loadedVariants[0]?.attributes || {};
+        const attrKeys = Object.keys(attrs);
+        if (attrKeys.length > 0) {
+          setOption1Type(attrKeys[0]);
+          const uniqueValues1 = [...new Set(loadedVariants.map(v => v.attributes[attrKeys[0]]))];
+          setOption1Values(uniqueValues1.join(', '));
+
+          if (attrKeys.length > 1) {
+            setNeedsOption2(true);
+            setOption2Type(attrKeys[1]);
+            const uniqueValues2 = [...new Set(loadedVariants.map(v => v.attributes[attrKeys[1]]))];
+            setOption2Values(uniqueValues2.join(', '));
+          }
+        }
+      } else {
+        setHasOptions(false);
+        setBasePrice(editingProduct.price?.toString() || '');
+      }
+    } catch (error) {
+      console.error('Error loading existing product:', error);
+    }
+  };
+
   const commonOptions = [
     { value: 'color', label: 'Color (Red, Blue, Green...)' },
     { value: 'size', label: 'Size (S, M, L, XL...)' },
@@ -128,6 +210,24 @@ export function SimpleProductWizard({
       return;
     }
 
+    if (!hasOptions && (!basePrice || parseFloat(basePrice) <= 0)) {
+      setError('Please enter a valid price');
+      return;
+    }
+
+    if (hasOptions && samePrice && (!basePrice || parseFloat(basePrice) <= 0)) {
+      setError('Please enter a valid price for all options');
+      return;
+    }
+
+    if (hasOptions && !samePrice) {
+      const invalidVariants = variants.filter(v => !v.price || parseFloat(v.price) <= 0);
+      if (invalidVariants.length > 0) {
+        setError('Please enter a valid price for all variants');
+        return;
+      }
+    }
+
     setSaving(true);
     setError('');
 
@@ -158,14 +258,39 @@ export function SimpleProductWizard({
         }
       }
 
-      // Create product
-      const { data: product, error: productError } = await supabase
-        .from('products')
-        .insert(productData)
-        .select()
-        .single();
+      let product;
+      if (editingProduct) {
+        const { data: updated, error: updateError } = await supabase
+          .from('products')
+          .update(productData)
+          .eq('id', editingProduct.id)
+          .select()
+          .single();
 
-      if (productError) throw productError;
+        if (updateError) throw updateError;
+        product = updated;
+
+        if (hasOptions) {
+          await supabase
+            .from('product_variants')
+            .delete()
+            .eq('product_id', editingProduct.id);
+
+          await supabase
+            .from('product_variant_images')
+            .delete()
+            .in('variant_id', supabase.from('product_variants').select('id').eq('product_id', editingProduct.id));
+        }
+      } else {
+        const { data: created, error: createError } = await supabase
+          .from('products')
+          .insert(productData)
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        product = created;
+      }
 
       // Create variants if applicable
       if (hasOptions && variants.length > 0) {
@@ -174,7 +299,7 @@ export function SimpleProductWizard({
           product_id: product.id,
           sku_code: v.sku,
           attributes: v.attributes,
-          price: parseFloat(v.price),
+          price: samePrice ? parseFloat(basePrice) : parseFloat(v.price),
           stock_quantity: enableStock ? parseInt(v.stock) || 0 : 0,
           is_active: true,
         }));
@@ -512,8 +637,10 @@ export function SimpleProductWizard({
 
             {hasOptions && samePrice === false && variants.length > 0 && (
               <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-                <h4 className="font-bold text-gray-900 mb-4">Set price for each option:</h4>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
+                <h4 className="font-bold text-gray-900 mb-4">
+                  Set price for each option: ({variants.length} variants)
+                </h4>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
                   {variants.map((variant, index) => (
                     <div key={index} className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg">
                       <div className="flex-1 font-medium text-gray-900">
@@ -639,8 +766,10 @@ export function SimpleProductWizard({
 
                 {needsDifferentImages && (
                   <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-                    <h4 className="font-bold text-gray-900 mb-4">Upload photo for each option:</h4>
-                    <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                    <h4 className="font-bold text-gray-900 mb-4">
+                      Upload photo for each option: ({variants.length} variants)
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-2">
                       {variants.map((variant, index) => (
                         <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                           <div className="font-medium text-gray-900 mb-2 text-sm">
@@ -680,8 +809,10 @@ export function SimpleProductWizard({
 
             {enableStock && hasOptions && samePrice !== null && (
               <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-                <h4 className="font-bold text-gray-900 mb-4">Stock Quantity (Optional):</h4>
-                <div className="space-y-3 max-h-60 overflow-y-auto">
+                <h4 className="font-bold text-gray-900 mb-4">
+                  Stock Quantity (Optional): ({variants.length} variants)
+                </h4>
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
                   {variants.map((variant, index) => (
                     <div key={index} className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg">
                       <div className="flex-1 font-medium text-gray-900 text-sm">
@@ -725,10 +856,12 @@ export function SimpleProductWizard({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-2xl p-8 max-w-3xl w-full my-8 shadow-2xl">
+      <div className="bg-white rounded-2xl p-8 max-w-3xl w-full my-8 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">Add New Product</h2>
+            <h2 className="text-2xl font-bold text-gray-900">
+              {editingProduct ? 'Edit Product' : 'Add New Product'}
+            </h2>
             <button
               onClick={onCancel}
               className="text-gray-400 hover:text-gray-600"
