@@ -66,22 +66,22 @@ export function EnhancedProductManagement() {
   const loadRestaurantId = async () => {
     if (!user?.id) return;
     const { data } = await supabase
-      .from('restaurants')
-      .select('id, restaurant_currency')
+      .from('businesses')
+      .select('id, countries!inner(currency_symbol)')
       .eq('owner_id', user.id)
       .maybeSingle();
     if (data) {
       setRestaurantId(data.id);
-      setCurrency(data.restaurant_currency || 'INR');
+      setCurrency(data.countries?.currency_symbol || 'INR');
     }
   };
 
   const loadSettings = async () => {
     if (!restaurantId) return;
     const { data } = await supabase
-      .from('restaurant_settings')
+      .from('business_settings')
       .select('*')
-      .eq('restaurant_id', restaurantId)
+      .eq('business_id', restaurantId)
       .maybeSingle();
     if (data) setSettings(data);
   };
@@ -91,7 +91,7 @@ export function EnhancedProductManagement() {
     const { data } = await supabase
       .from('products')
       .select('*')
-      .eq('restaurant_id', restaurantId)
+      .eq('business_id', restaurantId)
       .order('created_at', { ascending: false });
     if (data) setProducts(data);
   };
@@ -101,7 +101,7 @@ export function EnhancedProductManagement() {
     const { data } = await supabase
       .from('product_categories')
       .select('*')
-      .eq('restaurant_id', restaurantId)
+      .eq('business_id', restaurantId)
       .order('display_order', { ascending: true });
     if (data) setCategories(data);
   };
@@ -109,7 +109,7 @@ export function EnhancedProductManagement() {
   const checkProductLimit = async () => {
     if (!restaurantId) return;
     const { data, error } = await supabase.rpc('check_product_limit', {
-      restaurant_uuid: restaurantId
+      business_uuid: restaurantId
     });
     if (data && !error) {
       setProductLimit(data);
@@ -127,7 +127,7 @@ export function EnhancedProductManagement() {
     if (settings?.enable_categories) {
       headers.push('category_name');
     }
-    if (settings?.show_product_image) {
+    if (settings?.show_product_images) {
       headers.push('image_url');
     }
     if (settings?.enable_stock_management) {
@@ -144,7 +144,7 @@ export function EnhancedProductManagement() {
     if (settings?.enable_categories) {
       sampleRow.push('Category Name');
     }
-    if (settings?.show_product_image) {
+    if (settings?.show_product_images) {
       sampleRow.push('https://example.com/image.jpg');
     }
     if (settings?.enable_stock_management) {
@@ -216,7 +216,7 @@ export function EnhancedProductManagement() {
         if (row.length < 3 || !row[0]) continue;
 
         const { data: limitCheck } = await supabase.rpc('check_product_limit', {
-          restaurant_uuid: restaurantId
+          business_uuid: restaurantId
         });
 
         if (limitCheck && !limitCheck.can_add) {
@@ -225,7 +225,7 @@ export function EnhancedProductManagement() {
         }
 
         const productData: any = {
-          restaurant_id: restaurantId,
+          business_id: restaurantId,
           name: row[headers.indexOf('name')],
           description: row[headers.indexOf('description')] || '',
           price: parseFloat(row[headers.indexOf('price')]) || 0,
@@ -242,7 +242,7 @@ export function EnhancedProductManagement() {
               const { data: newCategory } = await supabase
                 .from('product_categories')
                 .insert({
-                  restaurant_id: restaurantId,
+                  business_id: restaurantId,
                   name: categoryName,
                   is_active: true,
                 })
@@ -260,7 +260,7 @@ export function EnhancedProductManagement() {
           }
         }
 
-        if (settings?.show_product_image) {
+        if (settings?.show_product_images) {
           const imageIdx = headers.indexOf('image_url');
           if (imageIdx !== -1) {
             productData.image_url = row[imageIdx] || null;
@@ -350,7 +350,7 @@ export function EnhancedProductManagement() {
     }
 
     const productData: any = {
-      restaurant_id: restaurantId,
+      business_id: restaurantId,
       name: productForm.name,
       description: productForm.description,
       price: parseFloat(productForm.price),
@@ -360,7 +360,7 @@ export function EnhancedProductManagement() {
     if (settings?.enable_categories && productForm.category_id) {
       productData.category_id = productForm.category_id;
     }
-    if (settings?.show_product_image) {
+    if (settings?.show_product_images) {
       productData.image_url = productForm.image_url || null;
     }
     if (settings?.enable_stock_management) {
@@ -399,7 +399,7 @@ export function EnhancedProductManagement() {
     if (!restaurantId) return;
 
     const categoryData = {
-      restaurant_id: restaurantId,
+      business_id: restaurantId,
       name: categoryForm.name,
       description: categoryForm.description,
       display_order: parseInt(categoryForm.display_order) || 0,
@@ -608,7 +608,7 @@ export function EnhancedProductManagement() {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    {settings?.show_product_image && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Image</th>}
+                    {settings?.show_product_images && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Image</th>}
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
                     {settings?.enable_categories && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Category</th>}
@@ -621,7 +621,7 @@ export function EnhancedProductManagement() {
                 <tbody className="divide-y divide-gray-200">
                   {paginatedProducts.map(product => (
                     <tr key={product.id} className="hover:bg-gray-50">
-                      {settings?.show_product_image && (
+                      {settings?.show_product_images && (
                         <td className="px-4 py-3">
                           {product.image_url ? (
                             <img src={product.image_url} alt={product.name} className="w-12 h-12 object-cover rounded" />
@@ -860,7 +860,7 @@ export function EnhancedProductManagement() {
                   </select>
                 </div>
               )}
-              {settings?.show_product_image && (
+              {settings?.show_product_images && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
                   <input

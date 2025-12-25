@@ -70,14 +70,14 @@ export function CustomerManagement() {
     if (!user?.id) return;
 
     const { data } = await supabase
-      .from('restaurants')
-      .select('id, currency')
+      .from('businesses')
+      .select('id, countries!inner(currency_symbol)')
       .eq('owner_id', user.id)
       .maybeSingle();
 
     if (data) {
       setRestaurantId(data.id);
-      setCurrency(data.currency || 'AED');
+      setCurrency(data.countries?.currency_symbol || 'AED');
     }
   };
 
@@ -87,7 +87,7 @@ export function CustomerManagement() {
       const { data: orders } = await supabase
         .from('orders')
         .select('customer_id, total_amount, created_at, status')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', restaurantId)
         .not('customer_id', 'is', null);
 
       if (!orders) return;
@@ -158,7 +158,7 @@ export function CustomerManagement() {
       const { data: orders } = await supabase
         .from('orders')
         .select('customer_id, total_amount, created_at')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', restaurantId)
         .not('customer_id', 'is', null);
 
       if (!orders) return;
@@ -241,7 +241,7 @@ export function CustomerManagement() {
       .from('orders')
       .select('id, created_at, total_amount, status')
       .eq('customer_id', customerId)
-      .eq('restaurant_id', restaurantId)
+      .eq('business_id', restaurantId)
       .order('created_at', { ascending: false });
 
     if (orders) {

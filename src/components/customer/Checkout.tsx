@@ -33,7 +33,7 @@ export function Checkout({ onBack }: CheckoutProps) {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState<string>('');
   const [trackingToken, setTrackingToken] = useState<string>('');
-  const [restaurantId, setRestaurantId] = useState<string>('');
+  const [businessId, setBusinessId] = useState<string>('');
   const [deliveryType, setDeliveryType] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'BANK_TRANSFER'>('COD');
   const [currency, setCurrency] = useState<string>('AED');
@@ -64,13 +64,13 @@ export function Checkout({ onBack }: CheckoutProps) {
       if (!subdomain) return;
 
       const { data } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('id, currency, minimum_order, delivery_fee')
         .eq('subdomain', subdomain)
         .maybeSingle();
 
       if (data) {
-        setRestaurantId(data.id);
+        setBusinessId(data.id);
         setCurrency(data.currency || 'AED');
         setMinimumOrderAmount(data.minimum_order || 0);
         setDeliveryFee(data.delivery_fee || 0);
@@ -227,7 +227,7 @@ export function Checkout({ onBack }: CheckoutProps) {
         .insert({
           customer_id: customerId,
           user_id: user?.id || null,
-          restaurant_id: restaurantId,
+          business_id: businessId,
           phone_number: phoneNumber,
           delivery_address: deliveryAddress,
           total_amount: finalTotal,

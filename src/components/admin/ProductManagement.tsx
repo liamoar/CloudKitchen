@@ -64,7 +64,7 @@ export function ProductManagement() {
   const loadRestaurantId = async () => {
     if (!user?.id) return;
     const { data } = await supabase
-      .from('restaurants')
+      .from('businesses')
       .select('id, tier:subscription_tiers(product_limit)')
       .eq('owner_id', user.id)
       .maybeSingle();
@@ -78,9 +78,9 @@ export function ProductManagement() {
   const loadSettings = async () => {
     if (!restaurantId) return;
     const { data } = await supabase
-      .from('restaurant_settings')
+      .from('business_settings')
       .select('*')
-      .eq('restaurant_id', restaurantId)
+      .eq('business_id', restaurantId)
       .maybeSingle();
     if (data) setSettings(data);
   };
@@ -90,7 +90,7 @@ export function ProductManagement() {
     const { data } = await supabase
       .from('products')
       .select('*')
-      .eq('restaurant_id', restaurantId)
+      .eq('business_id', restaurantId)
       .order('created_at', { ascending: false });
     if (data) {
       setProducts(data);
@@ -107,7 +107,7 @@ export function ProductManagement() {
     const { data } = await supabase
       .from('product_categories')
       .select('*')
-      .eq('restaurant_id', restaurantId)
+      .eq('business_id', restaurantId)
       .order('display_order');
     if (data) setCategories(data);
   };
@@ -117,7 +117,7 @@ export function ProductManagement() {
     const { data } = await supabase
       .from('featured_products')
       .select('*')
-      .eq('restaurant_id', restaurantId);
+      .eq('business_id', restaurantId);
     if (data) setFeaturedProducts(data);
   };
 
@@ -132,7 +132,7 @@ export function ProductManagement() {
 
     try {
       const productData: any = {
-        restaurant_id: restaurantId,
+        business_id: restaurantId,
         name: productForm.name,
         description: productForm.description,
         price: parseFloat(productForm.price),
@@ -158,7 +158,7 @@ export function ProductManagement() {
       }
 
       if (editingProductId) {
-        const { error } = await supabase.from('products').update(productData).eq('id', editingProductId).eq('restaurant_id', restaurantId);
+        const { error } = await supabase.from('products').update(productData).eq('id', editingProductId).eq('business_id', restaurantId);
         if (error) throw error;
         showNotification('Product updated successfully!', 'success');
       } else {
@@ -181,7 +181,7 @@ export function ProductManagement() {
 
     try {
       const categoryData = {
-        restaurant_id: restaurantId,
+        business_id: restaurantId,
         name: categoryForm.name,
         description: categoryForm.description || null,
         display_order: parseInt(categoryForm.display_order),
@@ -189,7 +189,7 @@ export function ProductManagement() {
       };
 
       if (editingCategoryId) {
-        const { error } = await supabase.from('product_categories').update(categoryData).eq('id', editingCategoryId).eq('restaurant_id', restaurantId);
+        const { error } = await supabase.from('product_categories').update(categoryData).eq('id', editingCategoryId).eq('business_id', restaurantId);
         if (error) throw error;
         showNotification('Category updated successfully!', 'success');
       } else {
@@ -235,7 +235,7 @@ export function ProductManagement() {
     if (!restaurantId) return;
     if (confirm('Are you sure you want to delete this product?')) {
       try {
-        const { error } = await supabase.from('products').delete().eq('id', id).eq('restaurant_id', restaurantId);
+        const { error } = await supabase.from('products').delete().eq('id', id).eq('business_id', restaurantId);
         if (error) throw error;
         showNotification('Product deleted successfully!', 'success');
         loadProducts();
@@ -250,7 +250,7 @@ export function ProductManagement() {
     if (!restaurantId) return;
     if (confirm('Are you sure you want to delete this category?')) {
       try {
-        const { error } = await supabase.from('product_categories').delete().eq('id', id).eq('restaurant_id', restaurantId);
+        const { error } = await supabase.from('product_categories').delete().eq('id', id).eq('business_id', restaurantId);
         if (error) throw error;
         showNotification('Category deleted successfully!', 'success');
         loadCategories();
@@ -270,13 +270,13 @@ export function ProductManagement() {
       if (isFeatured) {
         const fp = featuredProducts.find((fp) => fp.product_id === productId);
         if (fp) {
-          const { error } = await supabase.from('featured_products').delete().eq('id', fp.id).eq('restaurant_id', restaurantId);
+          const { error } = await supabase.from('featured_products').delete().eq('id', fp.id).eq('business_id', restaurantId);
           if (error) throw error;
           showNotification('Removed from featured products!', 'success');
         }
       } else {
         const { error } = await supabase.from('featured_products').insert({
-          restaurant_id: restaurantId,
+          business_id: restaurantId,
           product_id: productId,
           display_order: featuredProducts.length,
         });

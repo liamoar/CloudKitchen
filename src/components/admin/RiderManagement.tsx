@@ -46,7 +46,7 @@ export function RiderManagement() {
     if (!user?.id) return;
 
     const { data } = await supabase
-      .from('restaurants')
+      .from('businesses')
       .select('id')
       .eq('owner_id', user.id)
       .maybeSingle();
@@ -63,7 +63,7 @@ export function RiderManagement() {
       const { data } = await supabase
         .from('delivery_riders')
         .select('*')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', restaurantId)
         .order('created_at', { ascending: false });
 
       if (data) {
@@ -91,14 +91,14 @@ export function RiderManagement() {
             email: formData.email || null,
           })
           .eq('id', editingRider.id)
-          .eq('restaurant_id', restaurantId);
+          .eq('business_id', restaurantId);
         if (error) throw error;
         showNotification('Rider updated successfully!', 'success');
       } else {
         const { error } = await supabase
           .from('delivery_riders')
           .insert({
-            restaurant_id: restaurantId,
+            business_id: restaurantId,
             name: formData.name,
             phone: formData.phone,
             email: formData.email || null,
@@ -136,7 +136,7 @@ export function RiderManagement() {
         .from('delivery_riders')
         .delete()
         .eq('id', riderId)
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', restaurantId);
       if (error) throw error;
       showNotification('Rider deleted successfully!', 'success');
       loadRiders();
@@ -153,7 +153,7 @@ export function RiderManagement() {
         .from('delivery_riders')
         .update({ is_active: !rider.is_active })
         .eq('id', rider.id)
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', restaurantId);
       if (error) throw error;
       showNotification(`Rider ${rider.is_active ? 'deactivated' : 'activated'} successfully!`, 'success');
       loadRiders();

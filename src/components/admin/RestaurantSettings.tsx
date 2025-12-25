@@ -58,16 +58,16 @@ export function RestaurantSettings() {
   const loadRestaurantId = async () => {
     if (!user?.id) return;
     const { data } = await supabase
-      .from('restaurants')
-      .select('id, minimum_order_amount, delivery_fee_tiers, restaurant_currency')
+      .from('businesses')
+      .select('id, minimum_order_value, delivery_charges, countries!inner(currency_symbol)')
       .eq('owner_id', user.id)
       .maybeSingle();
     if (data) {
       setRestaurantId(data.id);
-      setMinimumOrderAmount(data.minimum_order_amount || 0);
-      setDeliveryFeeTiers(data.delivery_fee_tiers || []);
-      if (data.restaurant_currency) {
-        setFormData(prev => ({ ...prev, currency: data.restaurant_currency }));
+      setMinimumOrderAmount(data.minimum_order_value || 0);
+      setDeliveryFeeTiers(data.delivery_charges || []);
+      if (data.countries?.currency_symbol) {
+        setFormData(prev => ({ ...prev, currency: data.countries.currency_symbol }));
       }
     }
   };
@@ -91,31 +91,30 @@ export function RestaurantSettings() {
       }
 
       let { data } = await supabase
-        .from('restaurant_settings')
+        .from('business_settings')
         .select('*')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', restaurantId)
         .maybeSingle();
 
       if (!data) {
         const defaultSettings = {
-          restaurant_id: restaurantId,
-          name: 'My Restaurant',
+          business_id: restaurantId,
+          support_email: '',
+          support_phone: '',
           address: '',
           city: '',
-          phone: '',
-          email: '',
-          currency: 'INR',
-          show_product_image: true,
+          show_product_images: true,
           enable_stock_management: true,
           enable_categories: false,
-          opening_time: daysOfWeek.reduce((acc, day) => ({
+          enable_skus: false,
+          opening_hours: daysOfWeek.reduce((acc, day) => ({
             ...acc,
             [day]: { open: '09:00', close: '22:00' },
           }), {}),
         };
 
         const { data: newData } = await supabase
-          .from('restaurant_settings')
+          .from('business_settings')
           .insert(defaultSettings)
           .select()
           .single();
@@ -126,20 +125,20 @@ export function RestaurantSettings() {
       if (data) {
         setSettings(data);
         setFormData({
-          name: data.name,
-          address: data.address,
-          city: data.city,
-          phone: data.phone,
-          email: data.email,
-          currency: data.currency,
-          show_product_image: data.show_product_image,
-          enable_stock_management: data.enable_stock_management,
-          enable_categories: data.enable_categories,
-          opening_time: data.opening_time,
+          name: data.name || 'My Business',
+          address: data.address || '',
+          city: data.city || '',
+          phone: data.support_phone || '',
+          email: data.support_email || '',
+          currency: formData.currency,
+          show_product_image: data.show_product_images || false,
+          enable_stock_management: data.enable_stock_management || false,
+          enable_categories: data.enable_categories || false,
+          opening_time: data.opening_hours || {},
           bank_name: data.bank_name || '',
-          account_holder_name: data.account_holder_name || '',
+          account_holder_name: data.bank_holder_name || '',
           account_number: data.account_number || '',
-          bank_qr_code_url: data.bank_qr_code_url || '',
+          bank_qr_code_url: data.qr_code_url || '',
         });
       }
     } catch (error) {
@@ -157,24 +156,38 @@ export function RestaurantSettings() {
     setMessage('');
 
     try {
+      const settingsData = {
+        support_email: formData.email,
+        support_phone: formData.phone,
+        address: formData.address,
+        city: formData.city,
+        show_product_images: formData.show_product_image,
+        enable_stock_management: formData.enable_stock_management,
+        enable_categories: formData.enable_categories,
+        opening_hours: formData.opening_time,
+        bank_name: formData.bank_name,
+        bank_holder_name: formData.account_holder_name,
+        account_number: formData.account_number,
+        qr_code_url: formData.bank_qr_code_url,
+      };
+
       const settingsError = await supabase
-        .from('restaurant_settings')
-        .update(formData)
+        .from('business_settings')
+        .update(settingsData)
         .eq('id', settings.id)
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', restaurantId);
 
       if (settingsError.error) throw settingsError.error;
 
-      const restaurantError = await supabase
-        .from('restaurants')
+      const businessError = await supabase
+        .from('businesses')
         .update({
-          minimum_order_amount: minimumOrderAmount,
-          delivery_fee_tiers: deliveryFeeTiers,
-          restaurant_currency: formData.currency,
+          minimum_order_value: minimumOrderAmount,
+          delivery_charges: deliveryFeeTiers,
         })
         .eq('id', restaurantId);
 
-      if (restaurantError.error) throw restaurantError.error;
+      if (businessError.error) throw businessError.error;
 
       setMessage('Settings saved successfully!');
       setTimeout(() => setMessage(''), 3000);

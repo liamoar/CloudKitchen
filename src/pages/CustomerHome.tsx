@@ -79,32 +79,48 @@ export function CustomerHome() {
         return;
       }
 
-      const { data: restaurant } = await supabase
-        .from('restaurants')
-        .select('id, restaurant_currency, minimum_order_amount, delivery_fee_tiers, domain_status, status')
+      const { data: business } = await supabase
+        .from('businesses')
+        .select(`
+          id,
+          status,
+          is_subdomain_active,
+          country:countries(currency, currency_symbol)
+        `)
         .eq('subdomain', subdomain)
         .maybeSingle();
 
-      if (!restaurant) {
+      if (!business) {
         window.location.href = getMainDomainUrl('/');
         return;
       }
 
-      if (restaurant.domain_status !== 'active' || restaurant.status === 'SUSPENDED') {
+      if (!business.is_subdomain_active || business.status === 'inactive' || business.status === 'cancelled') {
         window.location.href = getMainDomainUrl('/');
         return;
       }
 
-      setRestaurantId(restaurant.id);
-      setCurrency(restaurant.restaurant_currency || 'AED');
-      setRestaurantData(restaurant);
+      const { data: businessSettings } = await supabase
+        .from('business_settings')
+        .select('minimum_order_value, delivery_charges')
+        .eq('business_id', business.id)
+        .maybeSingle();
+
+      setRestaurantId(business.id);
+      setCurrency(business.country?.currency_symbol || '$');
+      setRestaurantData({
+        id: business.id,
+        minimum_order_amount: businessSettings?.minimum_order_value || 0,
+        delivery_fee_tiers: businessSettings?.delivery_charges || [],
+        status: business.status
+      });
 
       const [productsRes, bundlesRes, settingsRes, categoriesRes, featuredRes] = await Promise.all([
-        supabase.from('products').select('*').eq('is_active', true).eq('restaurant_id', restaurant.id),
-        supabase.from('bundles').select('*').eq('is_active', true).eq('restaurant_id', restaurant.id),
-        supabase.from('restaurant_settings').select('*').eq('restaurant_id', restaurant.id).maybeSingle(),
-        supabase.from('product_categories').select('*').eq('is_active', true).eq('restaurant_id', restaurant.id).order('display_order'),
-        supabase.from('featured_products').select('product_id').eq('restaurant_id', restaurant.id),
+        supabase.from('products').select('*').eq('is_active', true).eq('business_id', business.id),
+        supabase.from('bundles').select('*').eq('is_active', true).eq('business_id', business.id),
+        supabase.from('business_settings').select('*').eq('business_id', business.id).maybeSingle(),
+        supabase.from('product_categories').select('*').eq('is_active', true).eq('business_id', business.id).order('display_order'),
+        supabase.from('featured_products').select('product_id').eq('business_id', business.id),
       ]);
 
       if (productsRes.data) setProducts(productsRes.data);
@@ -148,7 +164,7 @@ export function CustomerHome() {
         .from('orders')
         .insert({
           user_id: null,
-          restaurant_id: restaurantId,
+          business_id: restaurantId,
           phone_number: checkoutForm.phone,
           delivery_address: checkoutForm.isSelfPickup ? 'Self Pickup' : `${checkoutForm.address}, ${checkoutForm.city}`,
           total_amount: orderTotal, // Use final total (cart + delivery)
@@ -175,13 +191,7 @@ export function CustomerHome() {
 
       await supabase.from('order_items').insert(orderItems);
 
-      const { data: settingsData } = await supabase
-        .from('restaurant_settings')
-        .select('tracking_url_expiry_hours')
-        .eq('restaurant_id', restaurantId)
-        .maybeSingle();
-
-      const expiryHours = settingsData?.tracking_url_expiry_hours || 2;
+      const expiryHours = 24;
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + expiryHours);
 

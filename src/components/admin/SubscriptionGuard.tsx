@@ -22,13 +22,13 @@ export function SubscriptionGuard({ children, onSuspended }: SubscriptionGuardPr
 
     try {
       const { data: restaurant } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('id, subscription_status, status')
         .eq('owner_id', user.id)
         .maybeSingle();
 
       if (restaurant) {
-        if (restaurant.subscription_status === 'SUSPENDED') {
+        if (restaurant.subscription_status === 'inactive') {
           setIsSuspended(true);
           onSuspended();
         }

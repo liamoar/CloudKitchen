@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 interface Message {
   id: string;
-  restaurant_id: string;
+  business_id: string;
   sender_type: 'BUSINESS' | 'SUPPORT';
   sender_id: string;
   message: string;
@@ -13,7 +13,7 @@ interface Message {
   read: boolean;
 }
 
-interface Restaurant {
+interface Business {
   id: string;
   name: string;
   subdomain: string | null;
@@ -22,8 +22,8 @@ interface Restaurant {
 
 export function SupportChatManagement() {
   const { user } = useAuth();
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(null);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -31,55 +31,55 @@ export function SupportChatManagement() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadRestaurants();
+    loadBusinesses();
   }, []);
 
   useEffect(() => {
-    if (selectedRestaurantId) {
+    if (selectedBusinessId) {
       loadMessages();
       markMessagesAsRead();
       return subscribeToMessages();
     }
-  }, [selectedRestaurantId]);
+  }, [selectedBusinessId]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const loadRestaurants = async () => {
-    const { data: restaurantsData } = await supabase
-      .from('restaurants')
+  const loadBusinesses = async () => {
+    const { data: businessesData } = await supabase
+      .from('businesses')
       .select('id, name, subdomain')
       .order('name', { ascending: true });
 
-    if (restaurantsData) {
-      const restaurantsWithUnread = await Promise.all(
-        restaurantsData.map(async (restaurant) => {
+    if (businessesData) {
+      const businessesWithUnread = await Promise.all(
+        businessesData.map(async (business) => {
           const { count } = await supabase
             .from('support_messages')
             .select('*', { count: 'exact', head: true })
-            .eq('restaurant_id', restaurant.id)
+            .eq('business_id', business.id)
             .eq('sender_type', 'BUSINESS')
             .eq('read', false);
 
           return {
-            ...restaurant,
+            ...business,
             unread_count: count || 0,
           };
         })
       );
 
-      setRestaurants(restaurantsWithUnread);
+      setBusinesses(businessesWithUnread);
     }
   };
 
   const loadMessages = async () => {
-    if (!selectedRestaurantId) return;
+    if (!selectedBusinessId) return;
 
     const { data, error } = await supabase
       .from('support_messages')
       .select('*')
-      .eq('restaurant_id', selectedRestaurantId)
+      .eq('business_id', selectedBusinessId)
       .order('created_at', { ascending: true });
 
     if (error) {
@@ -93,21 +93,21 @@ export function SupportChatManagement() {
   };
 
   const subscribeToMessages = () => {
-    if (!selectedRestaurantId) return;
+    if (!selectedBusinessId) return;
 
     const channel = supabase
-      .channel(`admin_support_messages_${selectedRestaurantId}`)
+      .channel(`admin_support_messages_${selectedBusinessId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'support_messages',
-          filter: `restaurant_id=eq.${selectedRestaurantId}`,
+          filter: `business_id=eq.${selectedBusinessId}`,
         },
         () => {
           loadMessages();
-          loadRestaurants();
+          loadBusinesses();
         }
       )
       .subscribe();
@@ -118,16 +118,16 @@ export function SupportChatManagement() {
   };
 
   const markMessagesAsRead = async () => {
-    if (!selectedRestaurantId) return;
+    if (!selectedBusinessId) return;
 
     await supabase
       .from('support_messages')
       .update({ read: true })
-      .eq('restaurant_id', selectedRestaurantId)
+      .eq('business_id', selectedBusinessId)
       .eq('sender_type', 'BUSINESS')
       .eq('read', false);
 
-    loadRestaurants();
+    loadBusinesses();
   };
 
   const scrollToBottom = () => {
@@ -136,14 +136,14 @@ export function SupportChatManagement() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedRestaurantId || !user?.id) return;
+    if (!newMessage.trim() || !selectedBusinessId || !user?.id) return;
 
     setSending(true);
     try {
       const { error } = await supabase
         .from('support_messages')
         .insert({
-          restaurant_id: selectedRestaurantId,
+          business_id: selectedBusinessId,
           sender_type: 'SUPPORT',
           sender_id: user.id,
           message: newMessage.trim(),
@@ -164,12 +164,12 @@ export function SupportChatManagement() {
     }
   };
 
-  const filteredRestaurants = restaurants.filter(r =>
-    r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.subdomain?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredBusinesses = businesses.filter(b =>
+    b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    b.subdomain?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const selectedRestaurant = restaurants.find(r => r.id === selectedRestaurantId);
+  const selectedBusiness = businesses.find(b => b.id === selectedBusinessId);
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -193,30 +193,30 @@ export function SupportChatManagement() {
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {filteredRestaurants.length === 0 ? (
+            {filteredBusinesses.length === 0 ? (
               <div className="p-4 text-center text-gray-500 text-sm">
                 <Users size={48} className="mx-auto mb-2 text-gray-300" />
                 <p>No businesses found</p>
               </div>
             ) : (
-              filteredRestaurants.map((restaurant) => (
+              filteredBusinesses.map((business) => (
                 <button
-                  key={restaurant.id}
-                  onClick={() => setSelectedRestaurantId(restaurant.id)}
+                  key={business.id}
+                  onClick={() => setSelectedBusinessId(business.id)}
                   className={`w-full p-4 text-left border-b border-gray-200 hover:bg-gray-50 transition-colors ${
-                    selectedRestaurantId === restaurant.id ? 'bg-orange-50 border-l-4 border-l-orange-500' : ''
+                    selectedBusinessId === business.id ? 'bg-orange-50 border-l-4 border-l-orange-500' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 truncate">{restaurant.name}</h3>
-                      {restaurant.subdomain && (
-                        <p className="text-xs text-gray-500 truncate">{restaurant.subdomain}.hejo.app</p>
+                      <h3 className="font-semibold text-gray-900 truncate">{business.name}</h3>
+                      {business.subdomain && (
+                        <p className="text-xs text-gray-500 truncate">{business.subdomain}.hejo.app</p>
                       )}
                     </div>
-                    {restaurant.unread_count > 0 && (
+                    {business.unread_count > 0 && (
                       <span className="ml-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0">
-                        {restaurant.unread_count}
+                        {business.unread_count}
                       </span>
                     )}
                   </div>
@@ -227,12 +227,12 @@ export function SupportChatManagement() {
         </div>
 
         <div className="flex-1 flex flex-col">
-          {selectedRestaurantId ? (
+          {selectedBusinessId ? (
             <>
               <div className="p-4 border-b border-gray-200 bg-gray-50">
-                <h3 className="font-semibold text-gray-900">{selectedRestaurant?.name}</h3>
-                {selectedRestaurant?.subdomain && (
-                  <p className="text-xs text-gray-500">{selectedRestaurant.subdomain}.hejo.app</p>
+                <h3 className="font-semibold text-gray-900">{selectedBusiness?.name}</h3>
+                {selectedBusiness?.subdomain && (
+                  <p className="text-xs text-gray-500">{selectedBusiness.subdomain}.hejo.app</p>
                 )}
               </div>
 

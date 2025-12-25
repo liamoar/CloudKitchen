@@ -5,7 +5,7 @@ import { getCurrencySymbol } from '../../lib/utils';
 
 interface PaymentInvoice {
   id: string;
-  restaurant_id: string;
+  business_id: string;
   tier_id: string;
   invoice_number: string;
   invoice_type: string;
@@ -19,7 +19,7 @@ interface PaymentInvoice {
   billing_period_start: string;
   billing_period_end: string;
   created_at: string;
-  restaurant: {
+  business: {
     id: string;
     name: string;
     subdomain: string;
@@ -52,7 +52,7 @@ export default function PaymentApproval() {
         .from('payment_invoices')
         .select(`
           *,
-          restaurant:restaurants!payment_invoices_restaurant_id_fkey(id, name, subdomain, country, subscription_status),
+          business:businesses!payment_invoices_business_id_fkey(id, name, subdomain, country, subscription_status),
           tier:subscription_tiers!payment_invoices_tier_id_fkey(name, monthly_price)
         `)
         .order('created_at', { ascending: false });
@@ -68,11 +68,11 @@ export default function PaymentApproval() {
         throw error;
       }
 
-      const validInvoices = (data || []).filter((inv: any) => inv.restaurant && inv.tier);
+      const validInvoices = (data || []).filter((inv: any) => inv.business && inv.tier);
       setInvoices(validInvoices as any);
 
       if (data && data.length > validInvoices.length) {
-        console.warn(`Filtered out ${data.length - validInvoices.length} invoices with missing restaurant or tier data`);
+        console.warn(`Filtered out ${data.length - validInvoices.length} invoices with missing business or tier data`);
       }
     } catch (error: any) {
       console.error('Error loading invoices:', error);
@@ -86,11 +86,11 @@ export default function PaymentApproval() {
   };
 
   const handleApprove = async (invoice: PaymentInvoice) => {
-    if (!invoice.restaurant) {
-      setMessage({ text: 'Cannot approve invoice: restaurant data missing', type: 'error' });
+    if (!invoice.business) {
+      setMessage({ text: 'Cannot approve invoice: business data missing', type: 'error' });
       return;
     }
-    if (!confirm(`Approve payment for ${invoice.restaurant.name}?`)) return;
+    if (!confirm(`Approve payment for ${invoice.business.name}?`)) return;
 
     setProcessing(true);
     setMessage(null);
@@ -111,7 +111,7 @@ export default function PaymentApproval() {
         .eq('id', invoice.id);
 
       const updateData: any = {
-        subscription_status: 'ACTIVE',
+        subscription_status: 'active',
         current_tier_id: invoice.tier_id,
         subscription_starts_at: subscriptionStartDate.toISOString(),
         subscription_ends_at: subscriptionEndDate.toISOString(),
@@ -119,14 +119,14 @@ export default function PaymentApproval() {
         is_payment_overdue: false,
       };
 
-      if (invoice.restaurant.subscription_status === 'TRIAL') {
+      if (invoice.business.subscription_status === 'trial' || invoice.business.subscription_status === 'TRIAL') {
         updateData.trial_ends_at = now.toISOString();
       }
 
       await supabase
-        .from('restaurants')
+        .from('businesses')
         .update(updateData)
-        .eq('id', invoice.restaurant_id);
+        .eq('id', invoice.business_id);
 
       setMessage({ text: `Payment approved successfully! Business moved to ACTIVE status with ${invoice.tier?.name || 'selected'} plan.`, type: 'success' });
       setSelectedInvoice(null);
@@ -145,12 +145,12 @@ export default function PaymentApproval() {
       return;
     }
 
-    if (!invoice.restaurant) {
-      setMessage({ text: 'Cannot reject invoice: restaurant data missing', type: 'error' });
+    if (!invoice.business) {
+      setMessage({ text: 'Cannot reject invoice: business data missing', type: 'error' });
       return;
     }
 
-    if (!confirm(`Reject payment for ${invoice.restaurant.name}?`)) return;
+    if (!confirm(`Reject payment for ${invoice.business.name}?`)) return;
 
     setProcessing(true);
     setMessage(null);
@@ -266,8 +266,8 @@ export default function PaymentApproval() {
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{invoice.invoice_number}</td>
                     <td className="px-4 py-3 text-sm">
                       <div>
-                        <p className="font-medium text-gray-900">{invoice.restaurant?.name || 'Unknown'}</p>
-                        <p className="text-xs text-gray-500">{invoice.restaurant?.subdomain || 'unknown'}.hejo.app</p>
+                        <p className="font-medium text-gray-900">{invoice.business?.name || 'Unknown'}</p>
+                        <p className="text-xs text-gray-500">{invoice.business?.subdomain || 'unknown'}.hejo.app</p>
                       </div>
                     </td>
                     <td className="px-4 py-3">{getInvoiceTypeBadge(invoice.invoice_type)}</td>
@@ -315,8 +315,8 @@ export default function PaymentApproval() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Business</p>
-                  <p className="font-semibold text-gray-900">{selectedInvoice.restaurant?.name || 'Unknown'}</p>
-                  <p className="text-xs text-gray-500">{selectedInvoice.restaurant?.subdomain || 'unknown'}.hejo.app</p>
+                  <p className="font-semibold text-gray-900">{selectedInvoice.business?.name || 'Unknown'}</p>
+                  <p className="text-xs text-gray-500">{selectedInvoice.business?.subdomain || 'unknown'}.hejo.app</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Type</p>

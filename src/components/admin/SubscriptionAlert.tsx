@@ -26,7 +26,7 @@ export function SubscriptionAlert() {
     if (!user?.id) return;
 
     const { data: restaurant } = await supabase
-      .from('restaurants')
+      .from('businesses')
       .select('id')
       .eq('owner_id', user.id)
       .maybeSingle();
@@ -48,11 +48,11 @@ export function SubscriptionAlert() {
     return null;
   }
 
-  const daysRemaining = subscriptionInfo.status === 'TRIAL'
+  const daysRemaining = subscriptionInfo.status === 'trial'
     ? subscriptionInfo.trial_days_remaining
     : subscriptionInfo.subscription_days_remaining;
 
-  const message = subscriptionInfo.status === 'TRIAL'
+  const message = subscriptionInfo.status === 'trial'
     ? `Your trial period ends in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}. Please upgrade to continue using the service.`
     : `Your subscription renewal is due in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}. Submit payment to avoid service interruption.`;
 
@@ -73,7 +73,7 @@ export function SubscriptionAlert() {
             <p className={`text-sm font-medium ${textColor}`}>
               {message}
             </p>
-            {subscriptionInfo.status === 'TRIAL' && (
+            {subscriptionInfo.status === 'trial' && (
               <span className="px-2 py-1 bg-white rounded text-xs font-medium text-gray-700">
                 {subscriptionInfo.tier_name} - {subscriptionInfo.monthly_price} {subscriptionInfo.currency}/month
               </span>
