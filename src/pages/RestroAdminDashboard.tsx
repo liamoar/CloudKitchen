@@ -32,7 +32,7 @@ interface RestaurantInfo {
 export function RestroAdminDashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>('orders');
+  const [activeTab, setActiveTab] = useState<Tab>('settings');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [restaurantInfo, setRestaurantInfo] = useState<RestaurantInfo | null>(null);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
@@ -127,7 +127,7 @@ export function RestroAdminDashboard() {
           setShowTrialWarning(daysLeft <= 5 && daysLeft >= 0);
         }
 
-        if (restaurant.subscription_status === 'OVERDUE' || restaurant.subscription_status === 'SUSPENDED') {
+        if (business.status === 'overdue' || business.status === 'suspended') {
           setActiveTab('subscription');
         }
       }
@@ -142,13 +142,14 @@ export function RestroAdminDashboard() {
   };
 
   const tabs = [
-    { id: 'orders' as Tab, label: 'Orders', icon: Receipt },
-    { id: 'products' as Tab, label: 'Products', icon: Package },
-    { id: 'customers' as Tab, label: 'Customers', icon: UserCheck },
-    { id: 'riders' as Tab, label: 'Riders', icon: Users },
-    { id: 'sales' as Tab, label: 'Sales', icon: BarChart3 },
-    { id: 'subscription' as Tab, label: 'Subscription', icon: CreditCard },
     { id: 'settings' as Tab, label: 'Settings', icon: Settings },
+    // Temporarily disabled tabs - will enable one by one after testing
+    // { id: 'orders' as Tab, label: 'Orders', icon: Receipt },
+    // { id: 'products' as Tab, label: 'Products', icon: Package },
+    // { id: 'customers' as Tab, label: 'Customers', icon: UserCheck },
+    // { id: 'riders' as Tab, label: 'Riders', icon: Users },
+    // { id: 'sales' as Tab, label: 'Sales', icon: BarChart3 },
+    // { id: 'subscription' as Tab, label: 'Subscription', icon: CreditCard },
   ];
 
   return (
@@ -214,7 +215,8 @@ export function RestroAdminDashboard() {
         </div>
       </header>
 
-      <SubscriptionAlert />
+      {/* Temporarily disabled */}
+      {/* <SubscriptionAlert /> */}
 
       {showTrialWarning && trialDaysLeft !== null && (
         <div className="bg-yellow-50 border-b border-yellow-200">
@@ -333,17 +335,19 @@ export function RestroAdminDashboard() {
         ) : (
           <>
             {activeTab === 'settings' && <RestaurantSettings />}
-            {activeTab === 'products' && <EnhancedProductManagement />}
-            {activeTab === 'orders' && <OrderManagement currency={restaurantInfo?.currency} />}
-            {activeTab === 'customers' && <CustomerManagement />}
-            {activeTab === 'riders' && <RiderManagement />}
-            {activeTab === 'sales' && <SalesAnalytics currency={restaurantInfo?.currency} />}
-            {activeTab === 'subscription' && <SubscriptionStatus currency={restaurantInfo?.currency} />}
+            {/* Temporarily disabled - will enable one by one */}
+            {/* {activeTab === 'products' && <EnhancedProductManagement />} */}
+            {/* {activeTab === 'orders' && <OrderManagement currency={restaurantInfo?.currency} />} */}
+            {/* {activeTab === 'customers' && <CustomerManagement />} */}
+            {/* {activeTab === 'riders' && <RiderManagement />} */}
+            {/* {activeTab === 'sales' && <SalesAnalytics currency={restaurantInfo?.currency} />} */}
+            {/* {activeTab === 'subscription' && <SubscriptionStatus currency={restaurantInfo?.currency} />} */}
           </>
         )}
       </div>
 
-      <SupportChatPopup />
+      {/* Temporarily disabled */}
+      {/* <SupportChatPopup /> */}
     </div>
   );
 }
