@@ -283,7 +283,14 @@ export function LandingPage() {
 
       if (businessError) throw businessError;
 
-      const targetUrl = buildSubdomainUrl(formData.subdomain.toLowerCase(), '/admin');
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      const refreshToken = session?.refresh_token;
+
+      const targetUrl = buildSubdomainUrl(
+        formData.subdomain.toLowerCase(),
+        `/admin?access_token=${accessToken}&refresh_token=${refreshToken}&type=signup`
+      );
       setRedirectUrl(targetUrl);
       setShowLoadingScreen(true);
       setLoading(false);

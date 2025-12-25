@@ -39,6 +39,34 @@ export function RestroAdminDashboard() {
   const [showTrialWarning, setShowTrialWarning] = useState(false);
 
   useEffect(() => {
+    const handleAuthTokens = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+      const type = params.get('type');
+
+      if (accessToken && refreshToken && type === 'signup') {
+        try {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (error) {
+            console.error('Error setting session:', error);
+          } else {
+            window.history.replaceState({}, '', '/admin');
+          }
+        } catch (err) {
+          console.error('Error handling auth tokens:', err);
+        }
+      }
+    };
+
+    handleAuthTokens();
+  }, []);
+
+  useEffect(() => {
     loadRestaurantInfo();
   }, [user?.id]);
 
@@ -46,58 +74,55 @@ export function RestroAdminDashboard() {
     if (!user?.id) return;
 
     try {
-      const { data: restaurant, error: restError } = await supabase
-        .from('restaurants')
+      const { data: business, error: businessError } = await supabase
+        .from('businesses')
         .select(`
           id,
           name,
           subdomain,
-          is_open,
-          country,
-          restaurant_currency,
-          subscription_status,
+          status,
           trial_ends_at,
-          subscription_ends_at,
-          tier:subscription_tiers(currency)
+          current_period_ends_at,
+          country:countries(name, currency, currency_symbol)
         `)
         .eq('owner_id', user.id)
         .maybeSingle();
 
-      if (restError) {
-        console.error('Error loading restaurant:', restError);
+      if (businessError) {
+        console.error('Error loading business:', businessError);
         return;
       }
 
-      if (restaurant) {
+      if (business) {
         const { data: settings, error: settingsError } = await supabase
-          .from('restaurant_settings')
-          .select('name, phone, email, address')
-          .eq('restaurant_id', restaurant.id)
+          .from('business_settings')
+          .select('support_phone, support_email, address, city')
+          .eq('business_id', business.id)
           .maybeSingle();
 
         if (settingsError) {
           console.error('Error loading settings:', settingsError);
         }
 
-        const currency = restaurant.tier?.currency || restaurant.restaurant_currency || 'USD';
-        const restaurantName = settings?.name || restaurant.name || 'My Restaurant';
+        const currency = business.country?.currency_symbol || '$';
+        const businessName = business.name || 'My Business';
 
         setRestaurantInfo({
-          name: restaurantName,
-          phone: settings?.phone || '',
-          email: settings?.email || '',
-          address: settings?.address || '',
-          subdomain: restaurant.subdomain || '',
-          is_open: restaurant.is_open,
+          name: businessName,
+          phone: settings?.support_phone || '',
+          email: settings?.support_email || '',
+          address: `${settings?.address || ''}, ${settings?.city || ''}`.trim().replace(/^,\s*|,\s*$/g, ''),
+          subdomain: business.subdomain || '',
+          is_open: business.status === 'active' || business.status === 'trial',
           currency: currency,
-          country: restaurant.country || 'US',
-          subscription_status: restaurant.subscription_status,
-          trial_ends_at: restaurant.trial_ends_at,
-          subscription_ends_at: restaurant.subscription_ends_at,
+          country: business.country?.name || 'US',
+          subscription_status: business.status,
+          trial_ends_at: business.trial_ends_at,
+          subscription_ends_at: business.current_period_ends_at,
         });
 
-        if (restaurant.subscription_status === 'TRIAL' && restaurant.trial_ends_at) {
-          const daysLeft = Math.ceil((new Date(restaurant.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        if (business.status === 'trial' && business.trial_ends_at) {
+          const daysLeft = Math.ceil((new Date(business.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
           setTrialDaysLeft(daysLeft);
           setShowTrialWarning(daysLeft <= 5 && daysLeft >= 0);
         }
