@@ -215,16 +215,34 @@ export function LandingPage() {
         },
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        if (authError.message.includes('already registered')) {
+          throw new Error('This email is already registered. Please use a different email or try logging in.');
+        }
+        throw authError;
+      }
       if (!authData.user) throw new Error('Failed to create account');
 
-      const { data: owner } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authData.user.id)
-        .maybeSingle();
+      let owner = null;
+      let retries = 0;
+      const maxRetries = 5;
 
-      if (!owner) throw new Error('Failed to create user profile');
+      while (!owner && retries < maxRetries) {
+        const { data } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authData.user.id)
+          .maybeSingle();
+
+        if (data) {
+          owner = data;
+        } else {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      if (!owner) throw new Error('Failed to create user profile. Please contact support.');
 
       const selectedTier = tiers.find(t => t.id === formData.tierId);
       if (!selectedTier) throw new Error('Invalid subscription plan selected');
