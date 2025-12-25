@@ -25,11 +25,11 @@ interface PaymentInvoice {
     subdomain: string;
     country: string;
     subscription_status: string;
-  };
+  } | null;
   tier: {
     name: string;
     monthly_price: number;
-  };
+  } | null;
 }
 
 export default function PaymentApproval() {
@@ -52,8 +52,8 @@ export default function PaymentApproval() {
         .from('payment_invoices')
         .select(`
           *,
-          restaurant:restaurants(id, name, subdomain, country, subscription_status),
-          tier:subscription_tiers(name, monthly_price)
+          restaurant:restaurants!payment_invoices_restaurant_id_fkey(id, name, subdomain, country, subscription_status),
+          tier:subscription_tiers!payment_invoices_tier_id_fkey(name, monthly_price)
         `)
         .order('created_at', { ascending: false });
 
@@ -63,17 +63,33 @@ export default function PaymentApproval() {
 
       const { data, error } = await query;
 
-      if (error) throw error;
-      setInvoices(data as any || []);
-    } catch (error) {
+      if (error) {
+        console.error('Query error:', error);
+        throw error;
+      }
+
+      const validInvoices = (data || []).filter((inv: any) => inv.restaurant && inv.tier);
+      setInvoices(validInvoices as any);
+
+      if (data && data.length > validInvoices.length) {
+        console.warn(`Filtered out ${data.length - validInvoices.length} invoices with missing restaurant or tier data`);
+      }
+    } catch (error: any) {
       console.error('Error loading invoices:', error);
-      setMessage({ text: 'Failed to load invoices', type: 'error' });
+      setMessage({
+        text: `Failed to load invoices: ${error.message || 'Unknown error'}`,
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleApprove = async (invoice: PaymentInvoice) => {
+    if (!invoice.restaurant) {
+      setMessage({ text: 'Cannot approve invoice: restaurant data missing', type: 'error' });
+      return;
+    }
     if (!confirm(`Approve payment for ${invoice.restaurant.name}?`)) return;
 
     setProcessing(true);
@@ -112,7 +128,7 @@ export default function PaymentApproval() {
         .update(updateData)
         .eq('id', invoice.restaurant_id);
 
-      setMessage({ text: `Payment approved successfully! Business moved to ACTIVE status with ${invoice.tier.name} plan.`, type: 'success' });
+      setMessage({ text: `Payment approved successfully! Business moved to ACTIVE status with ${invoice.tier?.name || 'selected'} plan.`, type: 'success' });
       setSelectedInvoice(null);
       await loadInvoices();
     } catch (error) {
@@ -126,6 +142,11 @@ export default function PaymentApproval() {
   const handleReject = async (invoice: PaymentInvoice) => {
     if (!rejectionReason.trim()) {
       setMessage({ text: 'Please provide a rejection reason', type: 'error' });
+      return;
+    }
+
+    if (!invoice.restaurant) {
+      setMessage({ text: 'Cannot reject invoice: restaurant data missing', type: 'error' });
       return;
     }
 
@@ -245,12 +266,12 @@ export default function PaymentApproval() {
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{invoice.invoice_number}</td>
                     <td className="px-4 py-3 text-sm">
                       <div>
-                        <p className="font-medium text-gray-900">{invoice.restaurant.name}</p>
-                        <p className="text-xs text-gray-500">{invoice.restaurant.subdomain}.hejo.app</p>
+                        <p className="font-medium text-gray-900">{invoice.restaurant?.name || 'Unknown'}</p>
+                        <p className="text-xs text-gray-500">{invoice.restaurant?.subdomain || 'unknown'}.hejo.app</p>
                       </div>
                     </td>
                     <td className="px-4 py-3">{getInvoiceTypeBadge(invoice.invoice_type)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{invoice.tier.name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{invoice.tier?.name || 'Unknown'}</td>
                     <td className="px-4 py-3 text-sm font-semibold text-gray-900">
                       {getCurrencySymbol(invoice.currency)}{invoice.amount}
                     </td>
@@ -294,8 +315,8 @@ export default function PaymentApproval() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Business</p>
-                  <p className="font-semibold text-gray-900">{selectedInvoice.restaurant.name}</p>
-                  <p className="text-xs text-gray-500">{selectedInvoice.restaurant.subdomain}.hejo.app</p>
+                  <p className="font-semibold text-gray-900">{selectedInvoice.restaurant?.name || 'Unknown'}</p>
+                  <p className="text-xs text-gray-500">{selectedInvoice.restaurant?.subdomain || 'unknown'}.hejo.app</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Type</p>
@@ -303,7 +324,7 @@ export default function PaymentApproval() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Plan</p>
-                  <p className="font-semibold text-gray-900">{selectedInvoice.tier.name}</p>
+                  <p className="font-semibold text-gray-900">{selectedInvoice.tier?.name || 'Unknown'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Amount</p>
