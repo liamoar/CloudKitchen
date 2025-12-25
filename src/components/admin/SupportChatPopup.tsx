@@ -5,16 +5,16 @@ import { useAuth } from '../../contexts/AuthContext';
 
 interface Message {
   id: string;
-  sender_type: 'BUSINESS' | 'SUPPORT';
+  sender_type: 'business' | 'superadmin';
   message: string;
   created_at: string;
-  read: boolean;
 }
 
 export function SupportChatPopup() {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -27,16 +27,16 @@ export function SupportChatPopup() {
 
   useEffect(() => {
     if (restaurantId) {
-      loadMessages();
-      return subscribeToMessages();
+      loadOrCreateChat();
     }
   }, [restaurantId]);
 
   useEffect(() => {
-    if (isOpen && restaurantId) {
-      markMessagesAsRead();
+    if (chatId) {
+      loadMessages();
+      return subscribeToMessages();
     }
-  }, [isOpen, messages, restaurantId]);
+  }, [chatId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -49,16 +49,45 @@ export function SupportChatPopup() {
       .select('id')
       .eq('owner_id', user.id)
       .maybeSingle();
-    if (error) console.error('Error loading restaurant:', error);
+    if (error) console.error('Error loading business:', error);
     if (data) setRestaurantId(data.id);
   };
 
-  const loadMessages = async () => {
+  const loadOrCreateChat = async () => {
     if (!restaurantId) return;
+
+    const { data: existingChat } = await supabase
+      .from('support_chats')
+      .select('id')
+      .eq('business_id', restaurantId)
+      .eq('status', 'open')
+      .maybeSingle();
+
+    if (existingChat) {
+      setChatId(existingChat.id);
+      return;
+    }
+
+    const { data: newChat, error } = await supabase
+      .from('support_chats')
+      .insert({ business_id: restaurantId, status: 'open' })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Error creating chat:', error);
+      return;
+    }
+
+    if (newChat) setChatId(newChat.id);
+  };
+
+  const loadMessages = async () => {
+    if (!chatId) return;
     const { data, error } = await supabase
       .from('support_messages')
       .select('*')
-      .eq('business_id', restaurantId)
+      .eq('chat_id', chatId)
       .order('created_at', { ascending: true });
 
     if (error) {
@@ -68,23 +97,23 @@ export function SupportChatPopup() {
 
     if (data) {
       setMessages(data);
-      const unread = data.filter(m => m.sender_type === 'SUPPORT' && !m.read).length;
+      const unread = data.filter(m => m.sender_type === 'superadmin').length;
       setUnreadCount(unread);
     }
   };
 
   const subscribeToMessages = () => {
-    if (!restaurantId) return;
+    if (!chatId) return;
 
     const channel = supabase
-      .channel(`support_messages_${restaurantId}`)
+      .channel(`support_messages_${chatId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'support_messages',
-          filter: `business_id=eq.${restaurantId}`,
+          filter: `chat_id=eq.${chatId}`,
         },
         () => {
           loadMessages();
@@ -97,36 +126,21 @@ export function SupportChatPopup() {
     };
   };
 
-  const markMessagesAsRead = async () => {
-    if (!restaurantId) return;
-    const unreadMessages = messages.filter(m => m.sender_type === 'SUPPORT' && !m.read);
-    if (unreadMessages.length === 0) return;
-
-    await supabase
-      .from('support_messages')
-      .update({ read: true })
-      .eq('business_id', restaurantId)
-      .eq('sender_type', 'SUPPORT')
-      .eq('read', false);
-
-    setUnreadCount(0);
-  };
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !restaurantId || !user?.id) return;
+    if (!newMessage.trim() || !chatId || !user?.id) return;
 
     setSending(true);
     try {
       const { error } = await supabase
         .from('support_messages')
         .insert({
-          business_id: restaurantId,
-          sender_type: 'BUSINESS',
+          chat_id: chatId,
+          sender_type: 'business',
           sender_id: user.id,
           message: newMessage.trim(),
         });
@@ -200,11 +214,11 @@ export function SupportChatPopup() {
               messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`flex ${msg.sender_type === 'BUSINESS' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${msg.sender_type === 'business' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
                     className={`max-w-[80%] rounded-lg p-3 ${
-                      msg.sender_type === 'BUSINESS'
+                      msg.sender_type === 'business'
                         ? 'bg-orange-500 text-white'
                         : 'bg-gray-100 text-gray-900'
                     }`}
@@ -212,7 +226,7 @@ export function SupportChatPopup() {
                     <p className="text-sm">{msg.message}</p>
                     <p
                       className={`text-xs mt-1 ${
-                        msg.sender_type === 'BUSINESS' ? 'text-orange-100' : 'text-gray-500'
+                        msg.sender_type === 'business' ? 'text-orange-100' : 'text-gray-500'
                       }`}
                     >
                       {new Date(msg.created_at).toLocaleTimeString([], {

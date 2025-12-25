@@ -57,17 +57,28 @@ export function RestaurantSettings() {
 
   const loadRestaurantId = async () => {
     if (!user?.id) return;
-    const { data } = await supabase
+    const { data: businessData } = await supabase
       .from('businesses')
-      .select('id, minimum_order_value, delivery_charges, countries!inner(currency_symbol)')
+      .select('id, countries!inner(currency_symbol)')
       .eq('owner_id', user.id)
       .maybeSingle();
-    if (data) {
-      setRestaurantId(data.id);
-      setMinimumOrderAmount(data.minimum_order_value || 0);
-      setDeliveryFeeTiers(data.delivery_charges || []);
-      if (data.countries?.currency_symbol) {
-        setFormData(prev => ({ ...prev, currency: data.countries.currency_symbol }));
+
+    if (businessData) {
+      setRestaurantId(businessData.id);
+
+      const { data: settingsData } = await supabase
+        .from('business_settings')
+        .select('minimum_order_value, delivery_charges')
+        .eq('business_id', businessData.id)
+        .maybeSingle();
+
+      if (settingsData) {
+        setMinimumOrderAmount(settingsData.minimum_order_value || 0);
+        setDeliveryFeeTiers(settingsData.delivery_charges || []);
+      }
+
+      if (businessData.countries?.currency_symbol) {
+        setFormData(prev => ({ ...prev, currency: businessData.countries.currency_symbol }));
       }
     }
   };
@@ -90,6 +101,12 @@ export function RestaurantSettings() {
         });
       }
 
+      const { data: businessData } = await supabase
+        .from('businesses')
+        .select('name, address, city')
+        .eq('id', restaurantId)
+        .maybeSingle();
+
       let { data } = await supabase
         .from('business_settings')
         .select('*')
@@ -101,8 +118,8 @@ export function RestaurantSettings() {
           business_id: restaurantId,
           support_email: '',
           support_phone: '',
-          address: '',
-          city: '',
+          address: businessData?.address || '',
+          city: businessData?.city || '',
           show_product_images: true,
           enable_stock_management: true,
           enable_categories: false,
@@ -111,6 +128,8 @@ export function RestaurantSettings() {
             ...acc,
             [day]: { open: '09:00', close: '22:00' },
           }), {}),
+          minimum_order_value: 0,
+          delivery_charges: [],
         };
 
         const { data: newData } = await supabase
@@ -124,8 +143,10 @@ export function RestaurantSettings() {
 
       if (data) {
         setSettings(data);
+        setMinimumOrderAmount(data.minimum_order_value || 0);
+        setDeliveryFeeTiers(data.delivery_charges || []);
         setFormData({
-          name: data.name || 'My Business',
+          name: businessData?.name || 'My Business',
           address: data.address || '',
           city: data.city || '',
           phone: data.support_phone || '',
@@ -169,6 +190,8 @@ export function RestaurantSettings() {
         bank_holder_name: formData.account_holder_name,
         account_number: formData.account_number,
         qr_code_url: formData.bank_qr_code_url,
+        minimum_order_value: minimumOrderAmount,
+        delivery_charges: deliveryFeeTiers,
       };
 
       const settingsError = await supabase
@@ -182,8 +205,8 @@ export function RestaurantSettings() {
       const businessError = await supabase
         .from('businesses')
         .update({
-          minimum_order_value: minimumOrderAmount,
-          delivery_charges: deliveryFeeTiers,
+          address: formData.address,
+          city: formData.city,
         })
         .eq('id', restaurantId);
 

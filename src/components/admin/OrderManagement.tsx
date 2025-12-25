@@ -115,14 +115,14 @@ export function OrderManagement({ currency: propCurrency }: OrderManagementProps
 
     const { data } = await supabase
       .from('businesses')
-      .select('id, slug, is_payment_overdue, status, countries!inner(currency_symbol)')
+      .select('id, status, countries!inner(currency_symbol)')
       .eq('owner_id', user.id)
       .maybeSingle();
 
     if (data) {
       const restaurant = {
         ...data,
-        currency: data.countries?.currency_symbol || 'USD'
+        currency: data.countries?.currency_symbol || '$'
       };
       setRestaurant(restaurant);
       loadRiders(data.id);
