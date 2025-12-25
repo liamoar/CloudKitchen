@@ -293,8 +293,8 @@ export function SuperAdminDashboard() {
             });
           }
 
-          const activeRestaurants = businessesData.filter(b => b.status === 'ACTIVE').length;
-          const trialRestaurants = businessesData.filter(b => b.status === 'TRIAL').length;
+          const activeRestaurants = businessesData.filter(b => b.status?.toUpperCase() === 'ACTIVE').length;
+          const trialRestaurants = businessesData.filter(b => b.status?.toUpperCase() === 'TRIAL').length;
 
           const newRestaurantsToday = businessesData.filter(
             b => new Date(b.created_at) >= startOfToday
@@ -309,7 +309,7 @@ export function SuperAdminDashboard() {
           let premiumTierBusinesses = 0;
 
           businessesData.forEach(business => {
-            if (business.status === 'ACTIVE' && business.subscription_tier_id) {
+            if (business.status?.toUpperCase() === 'ACTIVE' && business.subscription_tier_id) {
               const tier = tierMap.get(business.subscription_tier_id);
               if (tier) {
                 const monthlyPrice = Number(tier.price) * (30 / (tier.days || 30));
@@ -559,7 +559,8 @@ export function SuperAdminDashboard() {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    const statusUpper = status?.toUpperCase();
+    switch (statusUpper) {
       case 'TRIAL': return 'bg-blue-100 text-blue-800';
       case 'ACTIVE': return 'bg-green-100 text-green-800';
       case 'SUSPENDED': return 'bg-red-100 text-red-800';
@@ -698,7 +699,7 @@ export function SuperAdminDashboard() {
                     </thead>
                     <tbody className="divide-y">
                       {restaurants.map((restaurant) => {
-                        const daysLeft = restaurant.status === 'TRIAL'
+                        const daysLeft = restaurant.status?.toUpperCase() === 'TRIAL'
                           ? restaurant.trial_days_remaining
                           : restaurant.subscription_days_remaining;
                         const orderLimit = restaurant.tier?.order_limit_per_month || 0;
@@ -731,7 +732,7 @@ export function SuperAdminDashboard() {
                             </td>
                             <td className="px-6 py-4">
                               <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(restaurant.status)}`}>
-                                {restaurant.status}
+                                {restaurant.status?.toUpperCase()}
                               </span>
                             </td>
                             <td className="px-6 py-4">
