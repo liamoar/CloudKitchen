@@ -25,6 +25,7 @@ export function RestaurantSettings() {
     show_product_image: true,
     enable_stock_management: true,
     enable_categories: false,
+    enable_multiple_sku: false,
     opening_time: {} as Record<string, { open: string; close: string }>,
     bank_name: '',
     account_holder_name: '',
@@ -148,22 +149,23 @@ export function RestaurantSettings() {
         setMinimumOrderAmount(data.minimum_order_value || 0);
         setDeliveryFeeTiers(data.delivery_charges || []);
         setQrPreview(data.qr_code_url || null);
-        setFormData({
+        setFormData(prev => ({
+          ...prev,
           name: businessData?.name || 'My Business',
           address: data.address || '',
           city: data.city || '',
           phone: data.support_phone || '',
           email: data.support_email || '',
-          currency: formData.currency,
           show_product_image: data.show_product_images || false,
           enable_stock_management: data.enable_stock_management || false,
           enable_categories: data.enable_categories || false,
+          enable_multiple_sku: data.enable_multiple_sku || false,
           opening_time: data.opening_hours || {},
           bank_name: data.bank_name || '',
           account_holder_name: data.bank_holder_name || '',
           account_number: data.account_number || '',
           bank_qr_code_url: data.qr_code_url || '',
-        });
+        }));
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -188,6 +190,7 @@ export function RestaurantSettings() {
         show_product_images: formData.show_product_image,
         enable_stock_management: formData.enable_stock_management,
         enable_categories: formData.enable_categories,
+        enable_multiple_sku: formData.enable_multiple_sku,
         opening_hours: formData.opening_time,
         bank_name: formData.bank_name,
         bank_holder_name: formData.account_holder_name,
@@ -538,7 +541,7 @@ export function RestaurantSettings() {
 
       <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
         <h3 className="text-xl font-semibold text-gray-800 border-b pb-3">Feature Settings</h3>
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-2 gap-4">
           <label className="flex items-center gap-3 cursor-pointer p-4 border rounded-lg hover:bg-gray-50 transition-colors">
             <input
               type="checkbox"
@@ -546,7 +549,10 @@ export function RestaurantSettings() {
               onChange={(e) => setFormData({ ...formData, show_product_image: e.target.checked })}
               className="w-5 h-5 rounded"
             />
-            <span className="text-sm font-medium text-gray-700">Show Product Images</span>
+            <div>
+              <span className="text-sm font-medium text-gray-700 block">Show Product Images</span>
+              <span className="text-xs text-gray-500">Display images for products</span>
+            </div>
           </label>
           <label className="flex items-center gap-3 cursor-pointer p-4 border rounded-lg hover:bg-gray-50 transition-colors">
             <input
@@ -555,7 +561,10 @@ export function RestaurantSettings() {
               onChange={(e) => setFormData({ ...formData, enable_stock_management: e.target.checked })}
               className="w-5 h-5 rounded"
             />
-            <span className="text-sm font-medium text-gray-700">Enable Stock Management</span>
+            <div>
+              <span className="text-sm font-medium text-gray-700 block">Enable Stock Management</span>
+              <span className="text-xs text-gray-500">Track inventory levels</span>
+            </div>
           </label>
           <label className="flex items-center gap-3 cursor-pointer p-4 border rounded-lg hover:bg-gray-50 transition-colors">
             <input
@@ -564,7 +573,22 @@ export function RestaurantSettings() {
               onChange={(e) => setFormData({ ...formData, enable_categories: e.target.checked })}
               className="w-5 h-5 rounded"
             />
-            <span className="text-sm font-medium text-gray-700">Enable Product Categories</span>
+            <div>
+              <span className="text-sm font-medium text-gray-700 block">Enable Product Categories</span>
+              <span className="text-xs text-gray-500">Organize products by category</span>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+            <input
+              type="checkbox"
+              checked={formData.enable_multiple_sku}
+              onChange={(e) => setFormData({ ...formData, enable_multiple_sku: e.target.checked })}
+              className="w-5 h-5 rounded"
+            />
+            <div>
+              <span className="text-sm font-medium text-gray-700 block">Enable Multiple SKU/Variants</span>
+              <span className="text-xs text-gray-500">For products with color, size, etc.</span>
+            </div>
           </label>
         </div>
       </div>

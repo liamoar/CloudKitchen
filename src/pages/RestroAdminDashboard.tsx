@@ -162,25 +162,35 @@ export function RestroAdminDashboard() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-800">{restaurantInfo?.name || 'hejo.app'}</h1>
                 {restaurantInfo && (
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600 mt-1">
-                    {restaurantInfo.phone && (
-                      <span className="flex items-center gap-1">
-                        <Phone size={14} />
-                        {restaurantInfo.phone}
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                      {restaurantInfo.address && (
+                        <span className="flex items-center gap-1">
+                          <MapPin size={14} />
+                          {restaurantInfo.address}
+                        </span>
+                      )}
+                      <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        restaurantInfo.is_open ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}>
+                        <Clock size={12} />
+                        {restaurantInfo.is_open ? 'Open' : 'Closed'}
                       </span>
-                    )}
-                    {restaurantInfo.address && (
-                      <span className="flex items-center gap-1">
-                        <MapPin size={14} />
-                        {restaurantInfo.address}
-                      </span>
-                    )}
-                    <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                      restaurantInfo.is_open ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}>
-                      <Clock size={12} />
-                      {restaurantInfo.is_open ? 'Open' : 'Closed'}
-                    </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                      {restaurantInfo.phone && (
+                        <span className="flex items-center gap-1">
+                          <Phone size={14} />
+                          {restaurantInfo.phone}
+                        </span>
+                      )}
+                      {restaurantInfo.email && (
+                        <span className="flex items-center gap-1">
+                          <Mail size={14} />
+                          {restaurantInfo.email}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

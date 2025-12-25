@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, Phone, MapPin, Clock, Truck } from 'lucide-react';
+import { ShoppingBag, Phone, MapPin, Clock, Truck, Mail } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Product, Bundle } from '../lib/database.types';
 import { ProductCard } from '../components/customer/ProductCard';
@@ -16,6 +16,8 @@ interface RestaurantInfo {
   minimum_order: number;
   is_open: boolean;
   currency: string;
+  support_email: string;
+  support_phone: string;
 }
 
 export function CustomerView() {
@@ -34,25 +36,27 @@ export function CustomerView() {
     try {
       const { data: restaurant } = await supabase
         .from('businesses')
-        .select('id, currency, is_open, delivery_fee, minimum_order')
+        .select('id, name, address, countries!inner(currency_symbol)')
         .maybeSingle();
 
       if (restaurant) {
         const { data: settings } = await supabase
           .from('business_settings')
-          .select('name, phone, address')
+          .select('support_phone, support_email, address, city')
           .eq('business_id', restaurant.id)
           .maybeSingle();
 
-        if (settings) {
+        if (settings || restaurant) {
           setRestaurantInfo({
-            name: settings.name || 'Our Store',
-            phone: settings.phone || '',
-            address: settings.address || '',
-            delivery_fee: restaurant.delivery_fee || 0,
-            minimum_order: restaurant.minimum_order || 0,
-            is_open: restaurant.is_open,
-            currency: restaurant.currency || 'USD',
+            name: restaurant.name || 'Our Store',
+            phone: settings?.support_phone || '',
+            address: settings?.address || restaurant.address || '',
+            delivery_fee: 0,
+            minimum_order: 0,
+            is_open: true,
+            currency: restaurant.countries?.currency_symbol || 'USD',
+            support_email: settings?.support_email || '',
+            support_phone: settings?.support_phone || '',
           });
         }
 
@@ -99,31 +103,35 @@ export function CustomerView() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-800">{restaurantInfo?.name || 'Our Store'}</h1>
                 {restaurantInfo && (
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600 mt-1">
-                    {restaurantInfo.phone && (
-                      <span className="flex items-center gap-1">
-                        <Phone size={14} />
-                        {restaurantInfo.phone}
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                      {restaurantInfo.address && (
+                        <span className="flex items-center gap-1">
+                          <MapPin size={14} />
+                          {restaurantInfo.address}
+                        </span>
+                      )}
+                      <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        restaurantInfo.is_open ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}>
+                        <Clock size={12} />
+                        {restaurantInfo.is_open ? 'Open Now' : 'Closed'}
                       </span>
-                    )}
-                    {restaurantInfo.address && (
-                      <span className="flex items-center gap-1">
-                        <MapPin size={14} />
-                        {restaurantInfo.address}
-                      </span>
-                    )}
-                    {restaurantInfo.delivery_fee > 0 && (
-                      <span className="flex items-center gap-1">
-                        <Truck size={14} />
-                        Delivery: {restaurantInfo.currency} {restaurantInfo.delivery_fee}
-                      </span>
-                    )}
-                    <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                      restaurantInfo.is_open ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}>
-                      <Clock size={12} />
-                      {restaurantInfo.is_open ? 'Open Now' : 'Closed'}
-                    </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                      {restaurantInfo.support_phone && (
+                        <span className="flex items-center gap-1">
+                          <Phone size={14} />
+                          {restaurantInfo.support_phone}
+                        </span>
+                      )}
+                      {restaurantInfo.support_email && (
+                        <span className="flex items-center gap-1">
+                          <Mail size={14} />
+                          {restaurantInfo.support_email}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
