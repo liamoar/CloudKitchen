@@ -43,6 +43,9 @@ export function LandingPage() {
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
+  const [redirectUrl, setRedirectUrl] = useState('');
 
   const [formData, setFormData] = useState({
     businessName: '',
@@ -53,6 +56,7 @@ export function LandingPage() {
     password: '',
     countryId: '',
     city: '',
+    address: '',
     tierId: ''
   });
 
@@ -269,6 +273,8 @@ export function LandingPage() {
           owner_id: owner.id,
           country_id: formData.countryId,
           subscription_tier_id: formData.tierId,
+          city: formData.city,
+          address: formData.address,
           status: 'trial',
           trial_ends_at: trialEndDate.toISOString()
         })
@@ -277,10 +283,26 @@ export function LandingPage() {
 
       if (businessError) throw businessError;
 
-      window.location.href = buildSubdomainUrl(formData.subdomain.toLowerCase(), '/admin');
+      const targetUrl = buildSubdomainUrl(formData.subdomain.toLowerCase(), '/admin');
+      setRedirectUrl(targetUrl);
+      setShowLoadingScreen(true);
+      setLoading(false);
+
+      const steps = [0, 1, 2, 3];
+      const stepDelay = 3750;
+
+      steps.forEach((step, index) => {
+        setTimeout(() => {
+          setLoadingStep(step);
+        }, index * stepDelay);
+      });
+
+      setTimeout(() => {
+        window.location.href = targetUrl;
+      }, 15000);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account');
-    } finally {
       setLoading(false);
     }
   };
@@ -369,6 +391,90 @@ export function LandingPage() {
       description: 'Built for real businesses. Handle real orders from day one.'
     }
   ];
+
+  if (showLoadingScreen) {
+    const loadingSteps = [
+      { icon: CheckCircle, title: 'Creating Your Account', description: 'Setting up your business profile' },
+      { icon: Globe, title: 'Activating Your Storefront', description: 'Configuring your custom domain' },
+      { icon: Layout, title: 'Preparing Your Dashboard', description: 'Setting up your admin panel' },
+      { icon: Zap, title: 'Ready to Launch!', description: 'Redirecting to your business dashboard' }
+    ];
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full bg-white rounded-2xl shadow-2xl p-8 border border-blue-100">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+              <Zap className="text-white" size={32} />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">Setting Up Your Business</h2>
+            <p className="text-gray-600">Please wait while we prepare everything for you</p>
+          </div>
+
+          <div className="space-y-6">
+            {loadingSteps.map((step, index) => {
+              const StepIcon = step.icon;
+              const isCompleted = loadingStep > index;
+              const isCurrent = loadingStep === index;
+              const isPending = loadingStep < index;
+
+              return (
+                <div
+                  key={index}
+                  className={`flex items-start gap-4 p-4 rounded-lg transition-all ${
+                    isCompleted ? 'bg-green-50 border border-green-200' :
+                    isCurrent ? 'bg-blue-50 border border-blue-200 animate-pulse' :
+                    'bg-gray-50 border border-gray-200 opacity-50'
+                  }`}
+                >
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    isCompleted ? 'bg-green-500' :
+                    isCurrent ? 'bg-blue-500 animate-spin' :
+                    'bg-gray-300'
+                  }`}>
+                    <StepIcon className="text-white" size={24} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className={`font-semibold text-lg ${
+                      isCompleted ? 'text-green-900' :
+                      isCurrent ? 'text-blue-900' :
+                      'text-gray-500'
+                    }`}>
+                      {step.title}
+                    </h3>
+                    <p className={`text-sm ${
+                      isCompleted ? 'text-green-700' :
+                      isCurrent ? 'text-blue-700' :
+                      'text-gray-500'
+                    }`}>
+                      {step.description}
+                    </p>
+                  </div>
+                  {isCompleted && (
+                    <CheckCircle className="text-green-500 flex-shrink-0" size={24} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-8 text-center">
+            <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+              <div
+                className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 h-2 rounded-full transition-all duration-1000"
+                style={{ width: `${((loadingStep + 1) / loadingSteps.length) * 100}%` }}
+              />
+            </div>
+            <p className="text-sm text-gray-600">
+              {loadingStep === loadingSteps.length - 1
+                ? 'Redirecting now...'
+                : `Step ${loadingStep + 1} of ${loadingSteps.length}`}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (showSignup) {
     return (
@@ -488,30 +594,30 @@ export function LandingPage() {
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Country
-                  </label>
-                  <select
-                    value={formData.countryId}
-                    onChange={(e) => {
-                      const country = countries.find(c => c.id === e.target.value);
-                      if (country) {
-                        setFormData({ ...formData, countryId: e.target.value, tierId: '' });
-                        setSelectedCountry(country);
-                      }
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    {countries.map(country => (
-                      <option key={country.id} value={country.id}>
-                        {country.name} ({country.currency_symbol})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Country
+                </label>
+                <select
+                  value={formData.countryId}
+                  onChange={(e) => {
+                    const country = countries.find(c => c.id === e.target.value);
+                    if (country) {
+                      setFormData({ ...formData, countryId: e.target.value, tierId: '' });
+                      setSelectedCountry(country);
+                    }
+                  }}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {countries.map(country => (
+                    <option key={country.id} value={country.id}>
+                      {country.name} ({country.currency_symbol})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
+              <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     City
@@ -523,6 +629,20 @@ export function LandingPage() {
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Your City"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Address
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Your Business Address"
                   />
                 </div>
               </div>
