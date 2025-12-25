@@ -192,6 +192,16 @@ export function Checkout({ onBack }: CheckoutProps) {
           deliveryAddress = `${newAddress.full_address}, ${newAddress.city}`;
         }
       } else {
+        if (customer.name !== formData.name || customer.email !== formData.email) {
+          await supabase
+            .from('customers')
+            .update({
+              name: formData.name,
+              email: formData.email || null,
+            })
+            .eq('id', customerId);
+        }
+
         if (deliveryType === 'DELIVERY') {
           if (selectedAddressId) {
             const selectedAddr = addresses.find(a => a.id === selectedAddressId);
@@ -580,13 +590,26 @@ export function Checkout({ onBack }: CheckoutProps) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
+                  Name *
                 </label>
                 <input
                   type="text"
-                  disabled
+                  required
                   value={formData.name}
-                  className="w-full px-4 py-2 border rounded-lg bg-gray-50"
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email (Optional)
+                </label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
             </div>
