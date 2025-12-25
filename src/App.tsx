@@ -13,7 +13,22 @@ import { getSubdomain, isMainDomain, getMainDomainUrl } from './lib/utils';
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 
-const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const isLocalDevelopment = () => {
+  const hostname = window.location.hostname;
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.includes('stackblitz') ||
+    hostname.includes('webcontainer') ||
+    hostname.includes('bolt') ||
+    hostname.includes('csb.app') ||
+    hostname.includes('replit') ||
+    hostname.includes('gitpod') ||
+    !hostname.includes('.')
+  );
+};
+
+const isLocalhost = isLocalDevelopment();
 
 function SubdomainValidator({ children }: { children: React.ReactNode }) {
   const [validating, setValidating] = useState(true);

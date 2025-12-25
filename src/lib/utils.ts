@@ -60,8 +60,20 @@ export function getSubdomain(): string | null {
 
   const hostname = window.location.hostname;
 
-  // For localhost development, check for route-based business parameter
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+  // For localhost and development environments, check for route-based business parameter
+  const isDevEnvironment = (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.includes('stackblitz') ||
+    hostname.includes('webcontainer') ||
+    hostname.includes('bolt') ||
+    hostname.includes('csb.app') ||
+    hostname.includes('replit') ||
+    hostname.includes('gitpod') ||
+    !hostname.includes('.')
+  );
+
+  if (isDevEnvironment) {
     const pathParts = window.location.pathname.split('/');
     if (pathParts[1] === 'business' && pathParts[2]) {
       return pathParts[2];
@@ -127,10 +139,21 @@ export function buildSubdomainUrl(subdomain: string, path: string = ''): string 
   const hostname = window.location.hostname;
   const port = window.location.port;
 
-  // For localhost development
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    const portPart = port ? `:${port}` : '';
-    return `${protocol}//${subdomain}.localhost${portPart}${path}`;
+  // For localhost and development environments, use route-based URLs
+  const isDevEnvironment = (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.includes('stackblitz') ||
+    hostname.includes('webcontainer') ||
+    hostname.includes('bolt') ||
+    hostname.includes('csb.app') ||
+    hostname.includes('replit') ||
+    hostname.includes('gitpod') ||
+    !hostname.includes('.')
+  );
+
+  if (isDevEnvironment) {
+    return `/business/${subdomain}${path}`;
   }
 
   // For production - replace subdomain or add it
@@ -191,10 +214,22 @@ export function getMainDomainUrl(path: string = ''): string {
   const hostname = window.location.hostname;
   const port = window.location.port;
 
-  // For localhost development
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+  // For localhost and development environments
+  const isDevEnvironment = (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.includes('stackblitz') ||
+    hostname.includes('webcontainer') ||
+    hostname.includes('bolt') ||
+    hostname.includes('csb.app') ||
+    hostname.includes('replit') ||
+    hostname.includes('gitpod') ||
+    !hostname.includes('.')
+  );
+
+  if (isDevEnvironment) {
     const portPart = port ? `:${port}` : '';
-    return `${protocol}//localhost${portPart}${path}`;
+    return `${protocol}//${hostname}${portPart}${path}`;
   }
 
   // Remove subdomain from hostname
@@ -221,8 +256,20 @@ export function getBusinessUrl(path: string = ''): string {
   const hostname = window.location.hostname;
   const subdomain = getSubdomain();
 
-  // For localhost development, use route-based URLs
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+  // For localhost and development environments, use route-based URLs
+  const isDevEnvironment = (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.includes('stackblitz') ||
+    hostname.includes('webcontainer') ||
+    hostname.includes('bolt') ||
+    hostname.includes('csb.app') ||
+    hostname.includes('replit') ||
+    hostname.includes('gitpod') ||
+    !hostname.includes('.')
+  );
+
+  if (isDevEnvironment) {
     if (!subdomain) return path;
     return `/business/${subdomain}${path}`;
   }
