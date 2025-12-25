@@ -56,6 +56,7 @@ export function LandingPage() {
     password: '',
     countryId: '',
     city: '',
+    address: '',
     tierId: ''
   });
 
@@ -272,6 +273,8 @@ export function LandingPage() {
           owner_id: owner.id,
           country_id: formData.countryId,
           subscription_tier_id: formData.tierId,
+          city: formData.city,
+          address: formData.address,
           status: 'trial',
           trial_ends_at: trialEndDate.toISOString()
         })
@@ -591,30 +594,30 @@ export function LandingPage() {
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Country
-                  </label>
-                  <select
-                    value={formData.countryId}
-                    onChange={(e) => {
-                      const country = countries.find(c => c.id === e.target.value);
-                      if (country) {
-                        setFormData({ ...formData, countryId: e.target.value, tierId: '' });
-                        setSelectedCountry(country);
-                      }
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    {countries.map(country => (
-                      <option key={country.id} value={country.id}>
-                        {country.name} ({country.currency_symbol})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Country
+                </label>
+                <select
+                  value={formData.countryId}
+                  onChange={(e) => {
+                    const country = countries.find(c => c.id === e.target.value);
+                    if (country) {
+                      setFormData({ ...formData, countryId: e.target.value, tierId: '' });
+                      setSelectedCountry(country);
+                    }
+                  }}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {countries.map(country => (
+                    <option key={country.id} value={country.id}>
+                      {country.name} ({country.currency_symbol})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
+              <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     City
@@ -626,6 +629,20 @@ export function LandingPage() {
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Your City"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Address
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Your Business Address"
                   />
                 </div>
               </div>
