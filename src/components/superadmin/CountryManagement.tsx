@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X, Globe } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Globe, Upload, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface Country {
@@ -37,6 +37,9 @@ export function CountryManagement() {
   const [editingCountry, setEditingCountry] = useState<Country | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [qrFile, setQrFile] = useState<File | null>(null);
+  const [qrPreview, setQrPreview] = useState<string>('');
 
   const [formData, setFormData] = useState<CountryFormData>({
     name: '',
@@ -73,16 +76,98 @@ export function CountryManagement() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB');
+      return;
+    }
+
+    setQrFile(file);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setQrPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const uploadQrCode = async (countrySlug: string): Promise<string | null> => {
+    if (!qrFile) return null;
+
+    try {
+      setUploading(true);
+      const fileExt = qrFile.name.split('.').pop();
+      const fileName = `${countrySlug}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('country-qr-codes')
+        .upload(filePath, qrFile, {
+          upsert: true,
+          contentType: qrFile.type,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('country-qr-codes')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      setError(`Failed to upload QR code: ${err.message}`);
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const deleteOldQrCode = async (qrUrl: string) => {
+    try {
+      const fileName = qrUrl.split('/').pop();
+      if (!fileName) return;
+
+      await supabase.storage
+        .from('country-qr-codes')
+        .remove([fileName]);
+    } catch (err) {
+      console.error('Failed to delete old QR code:', err);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setMessage('');
 
     try {
+      let qrUrl = formData.qr_url;
+
+      if (qrFile) {
+        const uploadedUrl = await uploadQrCode(formData.slug);
+        if (uploadedUrl) {
+          qrUrl = uploadedUrl;
+          if (editingCountry?.qr_url) {
+            await deleteOldQrCode(editingCountry.qr_url);
+          }
+        }
+      }
+
+      const dataToSave = { ...formData, qr_url: qrUrl };
+
       if (editingCountry) {
         const { error } = await supabase
           .from('countries')
-          .update(formData)
+          .update(dataToSave)
           .eq('id', editingCountry.id);
 
         if (error) throw error;
@@ -90,7 +175,7 @@ export function CountryManagement() {
       } else {
         const { error } = await supabase
           .from('countries')
-          .insert([formData]);
+          .insert([dataToSave]);
 
         if (error) throw error;
 
@@ -154,6 +239,8 @@ export function CountryManagement() {
       qr_url: country.qr_url || '',
       status: country.status,
     });
+    setQrPreview(country.qr_url || '');
+    setQrFile(null);
     setShowForm(true);
   };
 
@@ -192,6 +279,10 @@ export function CountryManagement() {
     });
     setEditingCountry(null);
     setShowForm(false);
+    setQrFile(null);
+    setQrPreview('');
+    setError('');
+    setMessage('');
   };
 
   const generateSlug = (name: string) => {
@@ -379,17 +470,66 @@ export function CountryManagement() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    QR Code URL
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Payment QR Code
                   </label>
-                  <input
-                    type="url"
-                    value={formData.qr_url}
-                    onChange={(e) => setFormData({ ...formData, qr_url: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="https://..."
-                  />
+
+                  <div className="flex items-start gap-4">
+                    <div className="flex-1">
+                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          {uploading ? (
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                          ) : (
+                            <>
+                              <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                              <p className="text-sm text-gray-600">
+                                <span className="font-semibold">Click to upload</span> or drag and drop
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 5MB</p>
+                            </>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          disabled={uploading}
+                        />
+                      </label>
+                    </div>
+
+                    {qrPreview && (
+                      <div className="relative">
+                        <div className="w-32 h-32 border-2 border-gray-300 rounded-lg overflow-hidden">
+                          <img
+                            src={qrPreview}
+                            alt="QR Code Preview"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQrFile(null);
+                            setQrPreview('');
+                          }}
+                          className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {qrFile && (
+                    <p className="text-sm text-green-600 mt-2 flex items-center gap-1">
+                      <ImageIcon size={16} />
+                      Selected: {qrFile.name}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -397,15 +537,17 @@ export function CountryManagement() {
             <div className="flex gap-3 pt-4">
               <button
                 type="submit"
-                className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                disabled={uploading}
+                className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 <Save size={20} />
-                {editingCountry ? 'Update Country' : 'Create Country'}
+                {uploading ? 'Uploading...' : (editingCountry ? 'Update Country' : 'Create Country')}
               </button>
               <button
                 type="button"
                 onClick={resetForm}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                disabled={uploading}
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
@@ -462,27 +604,44 @@ export function CountryManagement() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600">Currency:</span>
-                  <p className="font-semibold text-gray-900">{country.currency_symbol} ({country.currency})</p>
+              <div className="flex gap-6">
+                <div className="flex-1">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Currency:</span>
+                      <p className="font-semibold text-gray-900">{country.currency_symbol} ({country.currency})</p>
+                    </div>
+                    {country.bank_name && (
+                      <div>
+                        <span className="text-gray-600">Bank:</span>
+                        <p className="font-semibold text-gray-900">{country.bank_name}</p>
+                      </div>
+                    )}
+                    {country.account_holder && (
+                      <div>
+                        <span className="text-gray-600">Account Holder:</span>
+                        <p className="font-semibold text-gray-900">{country.account_holder}</p>
+                      </div>
+                    )}
+                    {country.account_number && (
+                      <div>
+                        <span className="text-gray-600">Account Number:</span>
+                        <p className="font-semibold text-gray-900">{country.account_number}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {country.bank_name && (
-                  <div>
-                    <span className="text-gray-600">Bank:</span>
-                    <p className="font-semibold text-gray-900">{country.bank_name}</p>
-                  </div>
-                )}
-                {country.account_holder && (
-                  <div>
-                    <span className="text-gray-600">Account Holder:</span>
-                    <p className="font-semibold text-gray-900">{country.account_holder}</p>
-                  </div>
-                )}
-                {country.account_number && (
-                  <div>
-                    <span className="text-gray-600">Account Number:</span>
-                    <p className="font-semibold text-gray-900">{country.account_number}</p>
+
+                {country.qr_url && (
+                  <div className="flex-shrink-0">
+                    <div className="text-xs text-gray-600 mb-1">Payment QR Code:</div>
+                    <div className="w-24 h-24 border-2 border-gray-200 rounded-lg overflow-hidden bg-white">
+                      <img
+                        src={country.qr_url}
+                        alt="Payment QR Code"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
