@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Plus, Package } from 'lucide-react';
+import { Plus, Package, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import type { Product } from '../../lib/database.types';
 import { useCart } from '../../contexts/CartContext';
 import { formatCurrency } from '../../lib/utils';
+import { getSubdomain } from '../../lib/utils';
 
 interface ProductVariant {
   id: string;
@@ -37,6 +39,7 @@ export function ProductCard({
   viewMode = 'grid',
 }: ProductCardProps) {
   const { addItem } = useCart();
+  const navigate = useNavigate();
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     variants && variants.length > 0 ? variants[0] : null
   );
@@ -64,6 +67,17 @@ export function ProductCard({
         price: product.price,
         type: 'PRODUCT',
       });
+    }
+  };
+
+  const handleViewDetails = () => {
+    const subdomain = getSubdomain();
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    if (isLocalhost && subdomain) {
+      navigate(`/business/${subdomain}/product/${product.id}`);
+    } else {
+      navigate(`/product/${product.id}`);
     }
   };
 
@@ -123,7 +137,12 @@ export function ProductCard({
           </div>
           <div className="flex-1 p-6 flex flex-col sm:flex-row justify-between gap-4">
             <div className="flex-1">
-              <h3 className="font-bold text-xl text-gray-900 mb-2">{product.name}</h3>
+              <h3
+                onClick={handleViewDetails}
+                className="font-bold text-xl text-gray-900 mb-2 cursor-pointer hover:text-blue-600 transition-colors"
+              >
+                {product.name}
+              </h3>
               <p className="text-gray-600 mb-4 line-clamp-2">{product.description}</p>
 
               {hasVariants && selectedVariant && (
@@ -165,18 +184,27 @@ export function ProductCard({
               )}
             </div>
 
-            <div className="flex flex-col justify-between items-end gap-4">
+            <div className="flex flex-col justify-between items-end gap-3">
               <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
                 {formatCurrency(currentPrice, currency)}
               </span>
-              <button
-                onClick={handleAddToCart}
-                disabled={isOutOfStock}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg hover:shadow-xl disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed font-semibold"
-              >
-                <Plus size={20} />
-                Add to Cart
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleViewDetails}
+                  className="bg-white border-2 border-blue-600 text-blue-600 hover:bg-blue-50 px-4 py-3 rounded-xl flex items-center gap-2 transition-all shadow-md hover:shadow-lg font-semibold"
+                >
+                  <Eye size={20} />
+                  View
+                </button>
+                <button
+                  onClick={handleAddToCart}
+                  disabled={isOutOfStock}
+                  className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg hover:shadow-xl disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed font-semibold"
+                >
+                  <Plus size={20} />
+                  Add
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -206,7 +234,12 @@ export function ProductCard({
       </div>
 
       <div className="p-5 flex flex-col flex-1">
-        <h3 className="font-bold text-lg text-gray-900 mb-2 line-clamp-1">{product.name}</h3>
+        <h3
+          onClick={handleViewDetails}
+          className="font-bold text-lg text-gray-900 mb-2 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors"
+        >
+          {product.name}
+        </h3>
         <p className="text-sm text-gray-600 mb-4 line-clamp-2 flex-1">{product.description}</p>
 
         {hasVariants && selectedVariant && (
@@ -241,18 +274,29 @@ export function ProductCard({
           </div>
         )}
 
-        <div className="flex items-center justify-between mt-auto pt-4">
-          <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-            {formatCurrency(currentPrice, currency)}
-          </span>
-          <button
-            onClick={handleAddToCart}
-            disabled={isOutOfStock}
-            className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg hover:shadow-xl disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed font-semibold"
-          >
-            <Plus size={18} />
-            Add
-          </button>
+        <div className="space-y-3 mt-auto pt-4">
+          <div className="flex items-center justify-between">
+            <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+              {formatCurrency(currentPrice, currency)}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleViewDetails}
+              className="flex-1 bg-white border-2 border-blue-600 text-blue-600 hover:bg-blue-50 px-3 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg font-semibold text-sm"
+            >
+              <Eye size={16} />
+              View
+            </button>
+            <button
+              onClick={handleAddToCart}
+              disabled={isOutOfStock}
+              className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-3 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed font-semibold text-sm"
+            >
+              <Plus size={16} />
+              Add
+            </button>
+          </div>
         </div>
       </div>
     </div>

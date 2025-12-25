@@ -9,6 +9,7 @@ import { RestroAdminDashboard } from './pages/RestroAdminDashboard';
 import { RestaurantLogin } from './pages/RestaurantLogin';
 import { OrderTracking } from './pages/OrderTracking';
 import { RiderDelivery } from './pages/RiderDelivery';
+import { ProductDetail } from './pages/ProductDetail';
 import { getSubdomain, isMainDomain, getMainDomainUrl } from './lib/utils';
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
@@ -194,6 +195,14 @@ function App() {
             }
           />
           <Route
+            path="/business/:subdomain/product/:productId"
+            element={
+              <SubdomainValidator>
+                <ProductDetail />
+              </SubdomainValidator>
+            }
+          />
+          <Route
             path="/business/:subdomain/login"
             element={
               <SubdomainValidator>
@@ -239,6 +248,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<CustomerHome />} />
+          <Route path="/product/:productId" element={<ProductDetail />} />
           <Route path="/login" element={<RestaurantLogin />} />
           <Route
             path="/admin"
