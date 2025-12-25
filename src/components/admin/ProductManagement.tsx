@@ -136,7 +136,7 @@ export function ProductManagement() {
         name: productForm.name,
         description: productForm.description,
         price: parseFloat(productForm.price),
-        is_active: productForm.is_active,
+        is_available: productForm.is_active,
       };
 
       if (settings?.enable_stock_management) {
@@ -152,9 +152,9 @@ export function ProductManagement() {
       }
 
       if (settings?.enable_categories) {
-        productData.category_id = productForm.category_id || null;
+        productData.category = productForm.category_id || null;
       } else {
-        productData.category_id = null;
+        productData.category = null;
       }
 
       if (editingProductId) {
@@ -214,8 +214,8 @@ export function ProductManagement() {
       price: product.price.toString(),
       stock_quantity: product.stock_quantity !== null && product.stock_quantity !== undefined ? product.stock_quantity.toString() : '',
       image_url: product.image_url || '',
-      category_id: product.category_id || '',
-      is_active: product.is_active,
+      category_id: product.category || '',
+      is_active: product.is_available,
     });
     setShowProductForm(true);
   };
@@ -318,7 +318,7 @@ export function ProductManagement() {
 
   const filteredProducts = products.filter((product) => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || product.category_id === selectedCategory;
+    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -625,7 +625,7 @@ export function ProductManagement() {
       <div className="grid gap-4">
         {filteredProducts.map((product) => {
           const isFeatured = featuredProducts.some((fp) => fp.product_id === product.id);
-          const category = categories.find((c) => c.id === product.category_id);
+          const category = categories.find((c) => c.id === product.category);
 
           return (
             <div
@@ -635,7 +635,7 @@ export function ProductManagement() {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-gray-800">{product.name}</h3>
-                  {!product.is_active && (
+                  {!product.is_available && (
                     <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">Inactive</span>
                   )}
                   {category && (

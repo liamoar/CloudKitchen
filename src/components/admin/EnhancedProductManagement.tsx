@@ -371,11 +371,11 @@ export function EnhancedProductManagement() {
       name: productForm.name,
       description: productForm.description,
       price: settings?.enable_multiple_sku ? 0 : parseFloat(productForm.price),
-      is_active: productForm.is_active,
+      is_available: productForm.is_active,
     };
 
     if (settings?.enable_categories && productForm.category_id) {
-      productData.category_id = productForm.category_id;
+      productData.category = productForm.category_id;
     }
     if (settings?.show_product_images && !settings?.enable_multiple_sku) {
       productData.image_url = productForm.image_url || null;
@@ -529,7 +529,7 @@ export function EnhancedProductManagement() {
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          p.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || p.category_id === selectedCategory;
+    const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -741,9 +741,9 @@ export function EnhancedProductManagement() {
                       )}
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          product.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          product.is_available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}>
-                          {product.is_active ? 'Active' : 'Inactive'}
+                          {product.is_available ? 'Active' : 'Inactive'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -757,8 +757,8 @@ export function EnhancedProductManagement() {
                                 price: product.price.toString(),
                                 stock_quantity: product.stock_quantity?.toString() || '0',
                                 image_url: product.image_url || '',
-                                category_id: product.category_id || '',
-                                is_active: product.is_active,
+                                category_id: product.category || '',
+                                is_active: product.is_available,
                               });
 
                               if (settings?.enable_multiple_sku) {

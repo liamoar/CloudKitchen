@@ -26,14 +26,16 @@ export interface Address {
 
 export interface Product {
   id: string;
+  business_id: string;
   name: string;
   description: string;
   price: number;
   stock_quantity: number;
-  is_active: boolean;
+  is_available: boolean;
   image_url: string | null;
-  category_id: string | null;
+  category: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface RestaurantSettings {
