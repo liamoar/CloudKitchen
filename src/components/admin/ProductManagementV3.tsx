@@ -116,6 +116,131 @@ export default function ProductManagementV3({ businessId, currency }: ProductMan
     return data.publicUrl;
   };
 
+  const downloadCSVTemplate = () => {
+    const headers = ['name', 'description', 'base_price', 'category', 'is_available'];
+    const sampleRow = ['Sample Product', 'Product description', '99.99', 'Electronics', 'true'];
+
+    const csv = [headers, sampleRow].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `product_template_${Date.now()}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const exportProductsToCSV = () => {
+    if (products.length === 0) {
+      alert('No products to export');
+      return;
+    }
+
+    const headers = ['name', 'description', 'base_price', 'category', 'is_available'];
+    const rows = [headers];
+
+    products.forEach(product => {
+      const row = [
+        product.name,
+        product.description || '',
+        product.base_price.toString(),
+        product.category || '',
+        product.is_available ? 'true' : 'false',
+      ];
+      rows.push(row);
+    });
+
+    const csv = rows.map(row => row.map(cell => {
+      const cellStr = String(cell);
+      if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+        return `"${cellStr.replace(/"/g, '""')}"`;
+      }
+      return cellStr;
+    }).join(',')).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `products_export_${Date.now()}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const parseCSV = (text: string): string[][] => {
+    const lines = text.split('\n').filter(line => line.trim());
+    return lines.map(line => {
+      const values: string[] = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+      return values;
+    });
+  };
+
+  const handleCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+      const headers = rows[0].map(h => h.toLowerCase().trim());
+      const dataRows = rows.slice(1);
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const row of dataRows) {
+        if (row.length < 3 || !row[0]) continue;
+
+        const productData: any = {
+          business_id: businessId,
+          name: row[headers.indexOf('name')],
+          description: row[headers.indexOf('description')] || '',
+          base_price: parseFloat(row[headers.indexOf('base_price')]) || 0,
+          category: row[headers.indexOf('category')] || '',
+          is_available: row[headers.indexOf('is_available')]?.toLowerCase() === 'true',
+          has_variants: false,
+          track_inventory: false,
+        };
+
+        const { error } = await supabase
+          .from('products')
+          .insert(productData);
+
+        if (error) {
+          errorCount++;
+          console.error('Error inserting product:', error);
+        } else {
+          successCount++;
+        }
+      }
+
+      alert(`Upload complete!\nSuccess: ${successCount}\nErrors: ${errorCount}`);
+      loadProducts();
+    } catch (error) {
+      console.error('Error uploading CSV:', error);
+      alert('Error uploading CSV file');
+    } finally {
+      setUploading(false);
+      event.target.value = '';
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-12">Loading products...</div>;
   }

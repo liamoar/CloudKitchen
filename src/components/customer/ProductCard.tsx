@@ -91,6 +91,8 @@ export function ProductCard({
     const options: Record<string, Set<string>> = {};
 
     variants.forEach((variant) => {
+      if (!variant.attributes || typeof variant.attributes !== 'object') return;
+
       Object.entries(variant.attributes).forEach(([key, value]) => {
         if (!options[key]) {
           options[key] = new Set();
@@ -125,9 +127,12 @@ export function ProductCard({
 
   const handleAddToCart = () => {
     if (hasValidVariants && selectedVariant) {
+      const attributeValues = selectedVariant.attributes
+        ? Object.values(selectedVariant.attributes).join(', ')
+        : '';
       addItem({
         id: selectedVariant.id,
-        name: `${product.name} (${Object.values(selectedVariant.attributes).join(', ')})`,
+        name: `${product.name}${attributeValues ? ` (${attributeValues})` : ''}`,
         price: selectedVariant.price,
         type: 'PRODUCT',
       });
@@ -161,6 +166,7 @@ export function ProductCard({
     };
 
     const matchingVariant = variants.find((v) => {
+      if (!v.attributes) return false;
       return Object.entries(newAttributes).every(
         ([key, val]) => v.attributes[key] === val
       );
@@ -217,7 +223,7 @@ export function ProductCard({
                             key={value}
                             onClick={() => selectVariantByAttributes(attrName, value)}
                             className={`px-3 py-1.5 text-xs font-medium transition-all border ${
-                              selectedVariant.attributes[attrName] === value
+                              selectedVariant.attributes?.[attrName] === value
                                 ? 'bg-black text-white border-black'
                                 : 'bg-white text-gray-700 border-gray-300 hover:border-black'
                             }`}
@@ -322,7 +328,7 @@ export function ProductCard({
                       key={value}
                       onClick={() => selectVariantByAttributes(attrName, value)}
                       className={`px-2.5 py-1 text-xs font-medium transition-all border ${
-                        selectedVariant.attributes[attrName] === value
+                        selectedVariant.attributes?.[attrName] === value
                           ? 'bg-black text-white border-black'
                           : 'bg-white text-gray-700 border-gray-300 hover:border-black'
                       }`}
