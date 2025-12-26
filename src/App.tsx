@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-
 import { useAuth } from './contexts/AuthContext';
 import { LandingPage } from './pages/LandingPage';
 import { LocalDevBusinessList } from './pages/LocalDevBusinessList';
-import { CustomerHome } from './pages/CustomerHome';
+import { CustomerView } from './pages/CustomerView';
 import { SuperAdminLogin } from './pages/SuperAdminLogin';
 import { SuperAdminDashboard } from './pages/SuperAdminDashboard';
 import { RestroAdminDashboard } from './pages/RestroAdminDashboard';
@@ -190,7 +190,7 @@ function App() {
             path="/business/:subdomain"
             element={
               <SubdomainValidator>
-                <CustomerHome />
+                <CustomerView />
               </SubdomainValidator>
             }
           />
@@ -247,7 +247,7 @@ function App() {
     <SubdomainValidator>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<CustomerHome />} />
+          <Route path="/" element={<CustomerView />} />
           <Route path="/product/:productId" element={<ProductDetail />} />
           <Route path="/login" element={<RestaurantLogin />} />
           <Route
