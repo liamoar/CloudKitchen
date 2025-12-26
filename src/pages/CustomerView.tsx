@@ -126,6 +126,13 @@ export function CustomerView() {
         if (productsRes.data) {
           setProducts(productsRes.data);
 
+          if (businessSettings?.enable_categories) {
+            const uniqueCategories = Array.from(
+              new Set(productsRes.data.map(p => p.category).filter(Boolean))
+            ).map((cat) => ({ id: cat, name: cat }));
+            setCategories(uniqueCategories);
+          }
+
           if (businessSettings?.enable_multiple_sku) {
             const productIds = productsRes.data.map(p => p.id);
             const { data: allVariants } = await supabase

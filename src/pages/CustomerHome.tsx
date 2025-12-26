@@ -180,6 +180,13 @@ export function CustomerHome() {
       if (productsRes.data) {
         setProducts(productsRes.data);
 
+        if (businessSettings?.enable_categories) {
+          const uniqueCategories = Array.from(
+            new Set(productsRes.data.map(p => p.category).filter(Boolean))
+          ).map((cat, idx) => ({ id: cat, name: cat }));
+          setCategories(uniqueCategories);
+        }
+
         if (businessSettings?.enable_multiple_sku) {
           const productIds = productsRes.data.map(p => p.id);
           const { data: allVariants } = await supabase
@@ -299,7 +306,7 @@ export function CustomerHome() {
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.description?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory =
-      selectedCategory === 'all' || product.category_id === selectedCategory;
+      selectedCategory === 'all' || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -715,7 +722,7 @@ export function CustomerHome() {
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-gray-900">
-              {selectedCategory === 'all' ? 'All Products' : categories.find(c => c.id === selectedCategory)?.name}
+              {selectedCategory === 'all' ? 'All Products' : selectedCategory}
             </h2>
             <div className="h-1 flex-1 ml-4 bg-gradient-to-r from-cyan-500 to-transparent rounded-full"></div>
           </div>

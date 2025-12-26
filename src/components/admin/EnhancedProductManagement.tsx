@@ -113,11 +113,15 @@ export function EnhancedProductManagement() {
   const loadCategories = async () => {
     if (!restaurantId) return;
     const { data } = await supabase
-      .from('product_categories')
-      .select('*')
-      .eq('business_id', restaurantId)
-      .order('display_order', { ascending: true });
-    if (data) setCategories(data);
+      .from('products')
+      .select('category')
+      .eq('business_id', restaurantId);
+    if (data) {
+      const uniqueCategories = Array.from(
+        new Set(data.map(p => p.category).filter(Boolean))
+      ).map((cat) => ({ id: cat, name: cat }));
+      setCategories(uniqueCategories as ProductCategory[]);
+    }
   };
 
   const checkProductLimit = async () => {
@@ -139,7 +143,7 @@ export function EnhancedProductManagement() {
     const headers = ['name', 'description', 'price'];
 
     if (settings?.enable_categories) {
-      headers.push('category_name');
+      headers.push('category');
     }
     if (settings?.show_product_images) {
       headers.push('image_url');
@@ -147,7 +151,7 @@ export function EnhancedProductManagement() {
     if (settings?.enable_stock_management) {
       headers.push('stock_quantity');
     }
-    headers.push('is_active');
+    headers.push('is_available');
 
     const sampleRow = [
       'Sample Product',
@@ -156,10 +160,10 @@ export function EnhancedProductManagement() {
     ];
 
     if (settings?.enable_categories) {
-      sampleRow.push('Category Name');
+      sampleRow.push('Snacks');
     }
     if (settings?.show_product_images) {
-      sampleRow.push('https://example.com/image.jpg');
+      sampleRow.push('image1.jpg');
     }
     if (settings?.enable_stock_management) {
       sampleRow.push('100');
@@ -179,6 +183,50 @@ export function EnhancedProductManagement() {
     a.download = `product_template_${Date.now()}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  const exportProductsToCSV = () => {
+    if (products.length === 0) {
+      showNotification('No products to export', 'error');
+      return;
+    }
+
+    const headers = ['name', 'description', 'price'];
+    if (settings?.enable_categories) headers.push('category');
+    if (settings?.show_product_images) headers.push('image_url');
+    if (settings?.enable_stock_management) headers.push('stock_quantity');
+    headers.push('is_available');
+
+    const rows = [headers];
+    products.forEach(product => {
+      const row = [
+        product.name,
+        product.description || '',
+        product.price.toString(),
+      ];
+      if (settings?.enable_categories) row.push(product.category || '');
+      if (settings?.show_product_images) row.push(product.image_url || '');
+      if (settings?.enable_stock_management) row.push((product.stock_quantity || 0).toString());
+      row.push(product.is_available ? 'true' : 'false');
+      rows.push(row);
+    });
+
+    const csv = rows.map(row => row.map(cell => {
+      const cellStr = String(cell);
+      if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+        return `"${cellStr.replace(/"/g, '""')}"`;
+      }
+      return cellStr;
+    }).join(',')).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `products_export_${Date.now()}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    showNotification('Products exported successfully!', 'success');
   };
 
   const parseCSV = (text: string): string[][] => {
@@ -243,34 +291,13 @@ export function EnhancedProductManagement() {
           name: row[headers.indexOf('name')],
           description: row[headers.indexOf('description')] || '',
           price: parseFloat(row[headers.indexOf('price')]) || 0,
-          is_active: row[headers.indexOf('is_active')]?.toLowerCase() === 'true',
+          is_available: row[headers.indexOf('is_available')]?.toLowerCase() === 'true',
         };
 
         if (settings?.enable_categories) {
-          const categoryNameIdx = headers.indexOf('category_name');
-          if (categoryNameIdx !== -1 && row[categoryNameIdx]) {
-            const categoryName = row[categoryNameIdx];
-            let category = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
-
-            if (!category) {
-              const { data: newCategory } = await supabase
-                .from('product_categories')
-                .insert({
-                  business_id: restaurantId,
-                  name: categoryName,
-                  is_active: true,
-                })
-                .select()
-                .single();
-              if (newCategory) {
-                category = newCategory;
-                setCategories([...categories, newCategory]);
-              }
-            }
-
-            if (category) {
-              productData.category_id = category.id;
-            }
+          const categoryIdx = headers.indexOf('category');
+          if (categoryIdx !== -1 && row[categoryIdx]) {
+            productData.category = row[categoryIdx].trim();
           }
         }
 
@@ -626,6 +653,14 @@ export function EnhancedProductManagement() {
               <Download size={20} />
               Download Template
             </button>
+            <button
+              onClick={exportProductsToCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors"
+              disabled={products.length === 0}
+            >
+              <Download size={20} />
+              Export Products
+            </button>
             <label className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors cursor-pointer">
               <Upload size={20} />
               {uploading ? 'Uploading...' : 'Upload CSV'}
@@ -957,16 +992,20 @@ export function EnhancedProductManagement() {
               {settings?.enable_categories && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <select
+                  <input
+                    type="text"
+                    list="categories"
                     value={productForm.category_id}
                     onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="">No Category</option>
+                    placeholder="Enter or select a category"
+                  />
+                  <datalist id="categories">
                     {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      <option key={cat.id} value={cat.name} />
                     ))}
-                  </select>
+                  </datalist>
+                  <p className="text-xs text-gray-500 mt-1">Start typing to see existing categories or enter a new one</p>
                 </div>
               )}
               {settings?.show_product_images && (
