@@ -65,6 +65,16 @@ export default function FilesManagement({ businessId, storageLimit }: FilesManag
     const fileInput = event.target.files;
     if (!fileInput || fileInput.length === 0) return;
 
+    const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB in bytes
+    const invalidFiles = Array.from(fileInput).filter(file => file.size > MAX_FILE_SIZE);
+
+    if (invalidFiles.length > 0) {
+      const fileNames = invalidFiles.map(f => f.name).join(', ');
+      alert(`The following files exceed 1MB and cannot be uploaded:\n${fileNames}\n\nPlease compress or resize these images before uploading.`);
+      event.target.value = '';
+      return;
+    }
+
     setUploading(true);
     const uploadedFiles: BusinessFile[] = [];
 

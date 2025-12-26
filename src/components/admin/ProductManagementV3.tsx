@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Image as ImageIcon, Save, X, Upload, Check } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, Save, X, Upload, Check, Download } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface BusinessFile {
@@ -49,10 +49,22 @@ export default function ProductManagementV3({ businessId, currency }: ProductMan
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
     loadProducts();
+    loadSettings();
   }, [businessId]);
+
+  const loadSettings = async () => {
+    const { data } = await supabase
+      .from('business_settings')
+      .select('*')
+      .eq('business_id', businessId)
+      .maybeSingle();
+    if (data) setSettings(data);
+  };
 
   const loadProducts = async () => {
     try {
@@ -110,15 +122,43 @@ export default function ProductManagementV3({ businessId, currency }: ProductMan
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <h2 className="text-2xl font-bold">Products</h2>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Create Product
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={downloadCSVTemplate}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+          >
+            <Download className="w-5 h-5" />
+            Download Template
+          </button>
+          <button
+            onClick={exportProductsToCSV}
+            className="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 flex items-center gap-2"
+            disabled={products.length === 0}
+          >
+            <Download className="w-5 h-5" />
+            Export Products
+          </button>
+          <label className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2 cursor-pointer">
+            <Upload className="w-5 h-5" />
+            {uploading ? 'Uploading...' : 'Upload CSV'}
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleCSVUpload}
+              className="hidden"
+              disabled={uploading}
+            />
+          </label>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Create Product
+          </button>
+        </div>
       </div>
 
       {products.length === 0 ? (
@@ -563,6 +603,16 @@ function Step2ImagesWithUpload({ businessId, selectedImages, setSelectedImages }
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const fileInput = event.target.files;
     if (!fileInput || fileInput.length === 0) return;
+
+    const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB in bytes
+    const invalidFiles = Array.from(fileInput).filter(file => file.size > MAX_FILE_SIZE);
+
+    if (invalidFiles.length > 0) {
+      const fileNames = invalidFiles.map(f => f.name).join(', ');
+      alert(`The following files exceed 1MB and cannot be uploaded:\n${fileNames}\n\nPlease compress or resize these images before uploading.`);
+      event.target.value = '';
+      return;
+    }
 
     setUploading(true);
     try {

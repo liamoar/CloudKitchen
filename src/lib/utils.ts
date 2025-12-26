@@ -16,9 +16,10 @@ export function getCurrencySymbol(currency: string): string {
   return symbols[currency] || currency;
 }
 
-export function formatCurrency(amount: number, currency: string = 'AED'): string {
+export function formatCurrency(amount: number | undefined | null, currency: string = 'AED'): string {
   const symbol = getCurrencySymbol(currency);
-  return `${symbol}${amount.toFixed(2)}`;
+  const value = amount ?? 0;
+  return `${symbol}${value.toFixed(2)}`;
 }
 
 export function calculateDeliveryFee(
