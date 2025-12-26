@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X, CreditCard, Users, Store, Phone, Mail, Clock, ExternalLink, MapPin, UserCheck, AlertTriangle } from 'lucide-react';
+import { LogOut, Settings, Package, Receipt, BarChart3, Menu, X, CreditCard, Users, Store, Phone, Mail, Clock, ExternalLink, MapPin, UserCheck, AlertTriangle, FolderOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { RestaurantSettings } from '../components/admin/RestaurantSettings';
-import { EnhancedProductManagement } from '../components/admin/EnhancedProductManagement';
 import { OrderManagement } from '../components/admin/OrderManagement';
 import { SalesAnalytics } from '../components/admin/SalesAnalytics';
 import { SubscriptionStatus } from '../components/admin/SubscriptionStatus';
@@ -12,10 +11,13 @@ import { RiderManagement } from '../components/admin/RiderManagement';
 import { CustomerManagement } from '../components/admin/CustomerManagement';
 import { SupportChatPopup } from '../components/admin/SupportChatPopup';
 import { SubscriptionAlert } from '../components/admin/SubscriptionAlert';
+import FilesManagement from '../components/admin/FilesManagement';
+import ProductManagementV2 from '../components/admin/ProductManagementV2';
 
-type Tab = 'settings' | 'products' | 'orders' | 'sales' | 'subscription' | 'riders' | 'customers';
+type Tab = 'settings' | 'products' | 'orders' | 'sales' | 'subscription' | 'riders' | 'customers' | 'files';
 
 interface RestaurantInfo {
+  id: string;
   name: string;
   phone: string;
   email: string;
@@ -27,6 +29,7 @@ interface RestaurantInfo {
   subscription_status?: string;
   trial_ends_at?: string;
   subscription_ends_at?: string;
+  storage_limit?: number;
 }
 
 export function RestroAdminDashboard() {
@@ -94,6 +97,12 @@ export function RestroAdminDashboard() {
       }
 
       if (business) {
+        const { data: tier } = await supabase
+          .from('subscription_tiers')
+          .select('storage_limit_mb')
+          .eq('id', business.subscription_tier_id)
+          .maybeSingle();
+
         const { data: settings, error: settingsError } = await supabase
           .from('business_settings')
           .select('support_phone, support_email, address, city')
@@ -108,6 +117,7 @@ export function RestroAdminDashboard() {
         const businessName = business.name || 'My Business';
 
         setRestaurantInfo({
+          id: business.id,
           name: businessName,
           phone: settings?.support_phone || '',
           email: settings?.support_email || '',
@@ -119,6 +129,7 @@ export function RestroAdminDashboard() {
           subscription_status: business.status,
           trial_ends_at: business.trial_ends_at,
           subscription_ends_at: business.current_period_ends_at,
+          storage_limit: tier?.storage_limit_mb || 100,
         });
 
         if (business.status === 'trial' && business.trial_ends_at) {
@@ -143,6 +154,7 @@ export function RestroAdminDashboard() {
 
   const tabs = [
     { id: 'settings' as Tab, label: 'Settings', icon: Settings },
+    { id: 'files' as Tab, label: 'Files', icon: FolderOpen },
     { id: 'products' as Tab, label: 'Products', icon: Package },
     { id: 'orders' as Tab, label: 'Orders', icon: Receipt },
     // Temporarily disabled tabs - will enable one by one after testing
@@ -345,7 +357,18 @@ export function RestroAdminDashboard() {
         ) : (
           <>
             {activeTab === 'settings' && <RestaurantSettings />}
-            {activeTab === 'products' && <EnhancedProductManagement />}
+            {activeTab === 'files' && restaurantInfo && (
+              <FilesManagement
+                businessId={restaurantInfo.id}
+                storageLimit={restaurantInfo.storage_limit || 100}
+              />
+            )}
+            {activeTab === 'products' && restaurantInfo && (
+              <ProductManagementV2
+                businessId={restaurantInfo.id}
+                currency={restaurantInfo.currency || '$'}
+              />
+            )}
             {activeTab === 'orders' && <OrderManagement currency={restaurantInfo?.currency} />}
             {/* Temporarily disabled - will enable one by one */}
             {/* {activeTab === 'customers' && <CustomerManagement />} */}

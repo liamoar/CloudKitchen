@@ -9,7 +9,7 @@ import { RestroAdminDashboard } from './pages/RestroAdminDashboard';
 import { RestaurantLogin } from './pages/RestaurantLogin';
 import { OrderTracking } from './pages/OrderTracking';
 import { RiderDelivery } from './pages/RiderDelivery';
-import { ProductDetail } from './pages/ProductDetail';
+import { ProductDetailV2 as ProductDetail } from './pages/ProductDetailV2';
 import { getSubdomain, isMainDomain, getMainDomainUrl } from './lib/utils';
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
