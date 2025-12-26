@@ -191,43 +191,43 @@ export function CustomerView() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
-      <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-30 border-b border-gray-200">
+    <div className="min-h-screen bg-white">
+      <header className="bg-black text-white sticky top-0 z-30 border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                <span className="text-white text-xl font-bold">{restaurantInfo?.name.charAt(0) || 'S'}</span>
+              <div className="w-10 h-10 bg-white text-black flex items-center justify-center flex-shrink-0 font-bold">
+                <span className="text-lg">{restaurantInfo?.name.charAt(0) || 'S'}</span>
               </div>
               <div className="min-w-0 flex-1">
-                <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+                <h1 className="text-lg md:text-xl font-semibold truncate">
                   {restaurantInfo?.name || 'Our Store'}
                 </h1>
                 {restaurantInfo && (
-                  <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs md:text-sm text-gray-600 mt-1">
+                  <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs md:text-sm text-gray-300 mt-0.5">
                     {restaurantInfo.city && (
                       <span className="flex items-center gap-1">
-                        <MapPin size={14} className="text-gray-400" />
+                        <MapPin size={12} />
                         <span className="truncate max-w-[150px] md:max-w-none">{restaurantInfo.city}</span>
                       </span>
                     )}
-                    <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                    <span className={`flex items-center gap-1 px-2 py-0.5 text-xs ${
                       restaurantInfo.is_open
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-red-100 text-red-700'
+                        ? 'bg-white text-black'
+                        : 'bg-gray-700 text-gray-300'
                     }`}>
-                      <Clock size={12} />
+                      <Clock size={10} />
                       {restaurantInfo.is_open ? 'Open' : 'Closed'}
                     </span>
                     {restaurantInfo.support_phone && (
                       <span className="hidden md:flex items-center gap-1">
-                        <Phone size={14} className="text-gray-400" />
+                        <Phone size={12} />
                         {restaurantInfo.support_phone}
                       </span>
                     )}
                     {restaurantInfo.support_email && (
                       <span className="hidden lg:flex items-center gap-1">
-                        <Mail size={14} className="text-gray-400" />
+                        <Mail size={12} />
                         {restaurantInfo.support_email}
                       </span>
                     )}
@@ -238,12 +238,12 @@ export function CustomerView() {
 
             <button
               onClick={() => setShowCartSidebar(true)}
-              className="relative bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center gap-2"
+              className="relative bg-white text-black px-4 md:px-5 py-2 md:py-2.5 font-medium transition-all hover:bg-gray-200 flex items-center gap-2"
             >
-              <ShoppingCart size={20} />
+              <ShoppingCart size={18} />
               <span className="hidden sm:inline">Cart</span>
               {items.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-lg">
+                <span className="absolute -top-2 -right-2 bg-black text-white text-xs font-bold w-5 h-5 flex items-center justify-center">
                   {items.length}
                 </span>
               )}
@@ -254,38 +254,38 @@ export function CustomerView() {
 
       <main className="max-w-7xl mx-auto px-4 py-6 md:py-8">
         <div className="mb-6 space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
                 placeholder="Search products..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all shadow-sm"
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 focus:border-black outline-none transition-all"
               />
             </div>
 
             <div className="flex gap-2">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-3 rounded-xl border transition-all ${
+                className={`p-2.5 border transition-all ${
                   viewMode === 'grid'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-md'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                    ? 'bg-black text-white border-black'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-black'
                 }`}
               >
-                <Grid size={20} />
+                <Grid size={18} />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-3 rounded-xl border transition-all ${
+                className={`p-2.5 border transition-all ${
                   viewMode === 'list'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-md'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                    ? 'bg-black text-white border-black'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-black'
                 }`}
               >
-                <List size={20} />
+                <List size={18} />
               </button>
             </div>
           </div>
@@ -294,9 +294,9 @@ export function CustomerView() {
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap transition-all ${
+                className={`px-4 py-2 font-medium whitespace-nowrap transition-all border ${
                   selectedCategory === 'all'
-                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
+                    ? 'bg-black text-white border-black'
                     : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
                 }`}
               >
@@ -306,10 +306,10 @@ export function CustomerView() {
                 <button
                   key={category.id}
                   onClick={() => setSelectedCategory(category.id)}
-                  className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap transition-all ${
+                  className={`px-4 py-2 font-medium whitespace-nowrap transition-all border ${
                     selectedCategory === category.id
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
-                      : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                      ? 'bg-black text-white border-black'
+                      : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-200'
                   }`}
                 >
                   {category.name}
@@ -321,11 +321,10 @@ export function CustomerView() {
 
         {bundles.length > 0 && selectedCategory === 'all' && (
           <section className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">Special Combos</h2>
-              <div className="h-1 flex-1 ml-4 bg-gradient-to-r from-blue-500 to-transparent rounded-full"></div>
+            <div className="mb-4 pb-2 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-black">Special Combos</h2>
             </div>
-            <div className={`grid gap-6 ${
+            <div className={`grid gap-4 ${
               viewMode === 'grid'
                 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
                 : 'grid-cols-1'
@@ -338,15 +337,14 @@ export function CustomerView() {
         )}
 
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">
+          <div className="mb-4 pb-2 border-b border-gray-200">
+            <h2 className="text-xl font-semibold text-black">
               {selectedCategory === 'all' ? 'All Products' : categories.find(c => c.id === selectedCategory)?.name}
             </h2>
-            <div className="h-1 flex-1 ml-4 bg-gradient-to-r from-cyan-500 to-transparent rounded-full"></div>
           </div>
 
           {filteredProducts.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+            <div className="text-center py-12 bg-gray-50 border border-gray-200">
               <p className="text-gray-500 text-lg">No products found</p>
             </div>
           ) : (

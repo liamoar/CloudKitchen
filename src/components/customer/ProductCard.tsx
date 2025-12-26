@@ -173,9 +173,9 @@ export function ProductCard({
 
   if (viewMode === 'list') {
     return (
-      <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all overflow-hidden border border-gray-100">
+      <div className="bg-white border border-gray-200 hover:border-black transition-all overflow-hidden">
         <div className="flex flex-col sm:flex-row">
-          <div className="sm:w-48 h-48 bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center flex-shrink-0">
+          <div className="sm:w-48 h-48 bg-gray-100 flex items-center justify-center flex-shrink-0">
             {settings?.show_product_images && currentImage ? (
               <img
                 src={currentImage}
@@ -183,22 +183,22 @@ export function ProductCard({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <Package size={64} className="text-blue-300" />
+              <Package size={64} className="text-gray-400" />
             )}
           </div>
           <div className="flex-1 p-6 flex flex-col sm:flex-row justify-between gap-4">
             <div className="flex-1">
               <h3
                 onClick={handleViewDetails}
-                className="font-bold text-xl text-gray-900 mb-2 cursor-pointer hover:text-blue-600 transition-colors"
+                className="font-semibold text-lg text-black mb-2 cursor-pointer hover:text-gray-600 transition-colors"
               >
                 {product.name}
               </h3>
-              <p className="text-gray-600 mb-4 line-clamp-2">{product.description}</p>
+              <p className="text-gray-600 text-sm mb-4 line-clamp-2">{product.description}</p>
 
               {hasVariants && !hasValidVariants && (
-                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-xs text-yellow-800">
+                <div className="mb-4 p-3 bg-gray-100 border border-gray-300">
+                  <p className="text-xs text-gray-700">
                     This product has variants but they are not configured correctly. Click "View" for details.
                   </p>
                 </div>
@@ -208,7 +208,7 @@ export function ProductCard({
                 <div className="space-y-3 mb-4">
                   {Object.entries(attributeOptions).map(([attrName, values]) => (
                     <div key={attrName}>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 capitalize">
+                      <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase">
                         {attrName}
                       </label>
                       <div className="flex gap-2 flex-wrap">
@@ -216,10 +216,10 @@ export function ProductCard({
                           <button
                             key={value}
                             onClick={() => selectVariantByAttributes(attrName, value)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                            className={`px-3 py-1.5 text-xs font-medium transition-all border ${
                               selectedVariant.attributes[attrName] === value
-                                ? 'bg-blue-600 text-white shadow-md'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                ? 'bg-black text-white border-black'
+                                : 'bg-white text-gray-700 border-gray-300 hover:border-black'
                             }`}
                           >
                             {value}
@@ -237,30 +237,30 @@ export function ProductCard({
               )}
 
               {isOutOfStock && (
-                <span className="inline-block px-3 py-1 bg-red-100 text-red-700 text-sm font-medium rounded-lg">
+                <span className="inline-block px-3 py-1 bg-black text-white text-xs font-medium">
                   Out of Stock
                 </span>
               )}
             </div>
 
             <div className="flex flex-col justify-between items-end gap-3">
-              <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+              <span className="text-2xl font-bold text-black">
                 {formatCurrency(currentPrice, currency)}
               </span>
               <div className="flex gap-2">
                 <button
                   onClick={handleViewDetails}
-                  className="bg-white border-2 border-blue-600 text-blue-600 hover:bg-blue-50 px-4 py-3 rounded-xl flex items-center gap-2 transition-all shadow-md hover:shadow-lg font-semibold"
+                  className="bg-white border border-black text-black hover:bg-black hover:text-white px-4 py-2 flex items-center gap-2 transition-all font-medium"
                 >
-                  <Eye size={20} />
+                  <Eye size={18} />
                   View
                 </button>
                 <button
                   onClick={handleAddToCart}
                   disabled={isOutOfStock}
-                  className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg hover:shadow-xl disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed font-semibold"
+                  className="bg-black hover:bg-gray-800 text-white px-5 py-2 flex items-center gap-2 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
                 >
-                  <Plus size={20} />
+                  <Plus size={18} />
                   Add
                 </button>
               </div>
@@ -272,8 +272,8 @@ export function ProductCard({
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all overflow-hidden border border-gray-100 flex flex-col">
-      <div className="h-48 bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center relative overflow-hidden">
+    <div className="bg-white border border-gray-200 hover:border-black transition-all overflow-hidden flex flex-col">
+      <div className="h-48 bg-gray-100 flex items-center justify-center relative overflow-hidden">
         {settings?.show_product_images && currentImage ? (
           <img
             src={currentImage}
@@ -281,50 +281,50 @@ export function ProductCard({
             className="w-full h-full object-cover"
           />
         ) : (
-          <Package size={64} className="text-blue-300" />
+          <Package size={64} className="text-gray-400" />
         )}
         {isOutOfStock && (
-          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-            <span className="bg-red-500 text-white px-4 py-2 rounded-lg font-semibold">
+          <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
+            <span className="bg-white text-black px-4 py-2 font-semibold">
               Out of Stock
             </span>
           </div>
         )}
       </div>
 
-      <div className="p-5 flex flex-col flex-1">
+      <div className="p-4 flex flex-col flex-1">
         <h3
           onClick={handleViewDetails}
-          className="font-bold text-lg text-gray-900 mb-2 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors"
+          className="font-semibold text-base text-black mb-1.5 line-clamp-1 cursor-pointer hover:text-gray-600 transition-colors"
         >
           {product.name}
         </h3>
-        <p className="text-sm text-gray-600 mb-4 line-clamp-2 flex-1">{product.description}</p>
+        <p className="text-xs text-gray-600 mb-3 line-clamp-2 flex-1">{product.description}</p>
 
         {hasVariants && !hasValidVariants && (
-          <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-xs text-yellow-800">
+          <div className="mb-3 p-2 bg-gray-100 border border-gray-300">
+            <p className="text-xs text-gray-700">
               Variants not configured. Click "View" for details.
             </p>
           </div>
         )}
 
         {hasValidVariants && selectedVariant && (
-          <div className="space-y-3 mb-4">
+          <div className="space-y-2 mb-3">
             {Object.entries(attributeOptions).map(([attrName, values]) => (
               <div key={attrName}>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5 capitalize">
+                <label className="block text-xs font-medium text-gray-700 mb-1 uppercase">
                   {attrName}
                 </label>
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-1.5 flex-wrap">
                   {values.map((value) => (
                     <button
                       key={value}
                       onClick={() => selectVariantByAttributes(attrName, value)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      className={`px-2.5 py-1 text-xs font-medium transition-all border ${
                         selectedVariant.attributes[attrName] === value
-                          ? 'bg-blue-600 text-white shadow-md'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'bg-black text-white border-black'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-black'
                       }`}
                     >
                       {value}
@@ -334,33 +334,33 @@ export function ProductCard({
               </div>
             ))}
             {selectedVariant && (
-              <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded inline-block">
+              <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 inline-block">
                 SKU: {selectedVariant.sku_code}
               </div>
             )}
           </div>
         )}
 
-        <div className="space-y-3 mt-auto pt-4">
+        <div className="space-y-2.5 mt-auto pt-3">
           <div className="flex items-center justify-between">
-            <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+            <span className="text-xl font-bold text-black">
               {formatCurrency(currentPrice, currency)}
             </span>
           </div>
           <div className="flex gap-2">
             <button
               onClick={handleViewDetails}
-              className="flex-1 bg-white border-2 border-blue-600 text-blue-600 hover:bg-blue-50 px-3 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg font-semibold text-sm"
+              className="flex-1 bg-white border border-black text-black hover:bg-black hover:text-white px-3 py-2 flex items-center justify-center gap-1.5 transition-all font-medium text-sm"
             >
-              <Eye size={16} />
+              <Eye size={14} />
               View
             </button>
             <button
               onClick={handleAddToCart}
               disabled={isOutOfStock}
-              className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-3 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed font-semibold text-sm"
+              className="flex-1 bg-black hover:bg-gray-800 text-white px-3 py-2 flex items-center justify-center gap-1.5 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed font-medium text-sm"
             >
-              <Plus size={16} />
+              <Plus size={14} />
               Add
             </button>
           </div>
