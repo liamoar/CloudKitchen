@@ -109,7 +109,7 @@ export function CustomerView() {
           });
         }
 
-        const [productsRes, bundlesRes, categoriesRes] = await Promise.all([
+        const [productsRes, bundlesRes] = await Promise.all([
           supabase
             .from('products')
             .select('*')
@@ -121,25 +121,18 @@ export function CustomerView() {
             .select('*')
             .eq('business_id', business.id)
             .eq('is_active', true),
-          businessSettings?.enable_categories
-            ? supabase
-                .from('product_categories')
-                .select('*')
-                .eq('business_id', business.id)
-                .eq('is_active', true)
-                .order('display_order', { ascending: true })
-            : Promise.resolve({ data: [] }),
         ]);
 
         if (productsRes.data) {
           setProducts(productsRes.data);
 
           if (businessSettings?.enable_multiple_sku) {
+            const productIds = productsRes.data.map(p => p.id);
             const { data: allVariants } = await supabase
               .from('product_variants')
               .select('*')
-              .eq('business_id', business.id)
-              .eq('is_active', true);
+              .in('product_id', productIds)
+              .eq('is_available', true);
 
             if (allVariants) {
               const variantsByProduct: Record<string, ProductVariant[]> = {};
@@ -154,7 +147,6 @@ export function CustomerView() {
           }
         }
         if (bundlesRes.data) setBundles(bundlesRes.data);
-        if (categoriesRes.data) setCategories(categoriesRes.data);
       }
     } catch (error) {
       console.error('Failed to load data:', error);
