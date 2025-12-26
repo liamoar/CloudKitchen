@@ -24,6 +24,7 @@ export default function FilesManagement({ businessId, storageLimit }: FilesManag
   const [storageUsed, setStorageUsed] = useState(0);
   const [selectedFile, setSelectedFile] = useState<BusinessFile | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
+  const [uploadType, setUploadType] = useState<'product_image' | 'qr_code'>('product_image');
 
   useEffect(() => {
     loadFiles();
@@ -76,10 +77,14 @@ export default function FilesManagement({ businessId, storageLimit }: FilesManag
 
         const fileExt = file.name.split('.').pop();
         const fileName = `${crypto.randomUUID()}.${fileExt}`;
-        const filePath = `${businessId}/product_images/${fileName}`;
+        const bucketName = uploadType === 'qr_code' ? 'business-qr-codes' : 'business-files';
+        const folderName = uploadType === 'qr_code' ? 'qr-codes' : 'product_images';
+        const filePath = uploadType === 'qr_code'
+          ? `${businessId}/${fileName}`
+          : `${businessId}/${folderName}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('business-files')
+          .from(bucketName)
           .upload(filePath, file, {
             cacheControl: '3600',
             upsert: false,
@@ -92,10 +97,10 @@ export default function FilesManagement({ businessId, storageLimit }: FilesManag
           .insert({
             business_id: businessId,
             file_name: file.name,
-            storage_path: filePath,
+            storage_path: `${bucketName}/${filePath}`,
             file_size: file.size,
             mime_type: file.type,
-            file_type: 'product_image',
+            file_type: uploadType,
           })
           .select()
           .single();
@@ -119,9 +124,12 @@ export default function FilesManagement({ businessId, storageLimit }: FilesManag
     if (!confirm(`Delete ${file.file_name}? This action cannot be undone.`)) return;
 
     try {
+      const [bucketName, ...pathParts] = file.storage_path.split('/');
+      const filePath = pathParts.join('/');
+
       const { error: storageError } = await supabase.storage
-        .from('business-files')
-        .remove([file.storage_path]);
+        .from(bucketName)
+        .remove([filePath]);
 
       if (storageError) throw storageError;
 
@@ -141,7 +149,9 @@ export default function FilesManagement({ businessId, storageLimit }: FilesManag
   };
 
   const getFileUrl = (storagePath: string) => {
-    const { data } = supabase.storage.from('business-files').getPublicUrl(storagePath);
+    const [bucketName, ...pathParts] = storagePath.split('/');
+    const filePath = pathParts.join('/');
+    const { data } = supabase.storage.from(bucketName).getPublicUrl(filePath);
     return data.publicUrl;
   };
 
@@ -167,18 +177,28 @@ export default function FilesManagement({ businessId, storageLimit }: FilesManag
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold">Files & Media</h2>
-          <label className="px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
-            <Upload className="w-4 h-4" />
-            {uploading ? 'Uploading...' : 'Upload Files'}
-            <input
-              type="file"
-              multiple
-              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
-              onChange={handleFileUpload}
-              disabled={uploading || storageUsed >= storageLimit}
-              className="hidden"
-            />
-          </label>
+          <div className="flex items-center gap-3">
+            <select
+              value={uploadType}
+              onChange={(e) => setUploadType(e.target.value as 'product_image' | 'qr_code')}
+              className="px-3 py-2 border rounded-lg text-sm"
+            >
+              <option value="product_image">Product Image</option>
+              <option value="qr_code">QR Code</option>
+            </select>
+            <label className="px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+              <Upload className="w-4 h-4" />
+              {uploading ? 'Uploading...' : 'Upload Files'}
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                onChange={handleFileUpload}
+                disabled={uploading || storageUsed >= storageLimit}
+                className="hidden"
+              />
+            </label>
+          </div>
         </div>
 
         <div className="mb-6">
@@ -230,6 +250,16 @@ export default function FilesManagement({ businessId, storageLimit }: FilesManag
             }`}
           >
             Product Images ({files.filter(f => f.file_type === 'product_image').length})
+          </button>
+          <button
+            onClick={() => setFilterType('qr_code')}
+            className={`px-3 py-1 rounded ${
+              filterType === 'qr_code'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            QR Codes ({files.filter(f => f.file_type === 'qr_code').length})
           </button>
         </div>
 

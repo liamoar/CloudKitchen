@@ -12,7 +12,7 @@ import { CustomerManagement } from '../components/admin/CustomerManagement';
 import { SupportChatPopup } from '../components/admin/SupportChatPopup';
 import { SubscriptionAlert } from '../components/admin/SubscriptionAlert';
 import FilesManagement from '../components/admin/FilesManagement';
-import ProductManagementV2 from '../components/admin/ProductManagementV2';
+import ProductManagementV3 from '../components/admin/ProductManagementV3';
 
 type Tab = 'settings' | 'products' | 'orders' | 'sales' | 'subscription' | 'riders' | 'customers' | 'files';
 
@@ -364,7 +364,7 @@ export function RestroAdminDashboard() {
               />
             )}
             {activeTab === 'products' && restaurantInfo && (
-              <ProductManagementV2
+              <ProductManagementV3
                 businessId={restaurantInfo.id}
                 currency={restaurantInfo.currency || '$'}
               />

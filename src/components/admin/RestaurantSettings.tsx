@@ -285,6 +285,19 @@ export function RestaurantSettings() {
         .from('business-qr-codes')
         .getPublicUrl(fileName);
 
+      await supabase
+        .from('business_files')
+        .upsert({
+          business_id: restaurantId,
+          file_name: `bank-qr.${fileExt}`,
+          storage_path: `business-qr-codes/${fileName}`,
+          file_size: file.size,
+          mime_type: file.type,
+          file_type: 'qr_code',
+        }, {
+          onConflict: 'storage_path',
+        });
+
       setQrPreview(publicUrl);
       setFormData({ ...formData, bank_qr_code_url: publicUrl });
       setMessage('QR code uploaded successfully!');
@@ -306,6 +319,13 @@ export function RestaurantSettings() {
 
       const fileNamePng = `${restaurantId}/bank-qr.png`;
       await supabase.storage.from('business-qr-codes').remove([fileNamePng]);
+
+      await supabase
+        .from('business_files')
+        .delete()
+        .eq('business_id', restaurantId)
+        .eq('file_type', 'qr_code')
+        .ilike('file_name', 'bank-qr.%');
 
       setQrPreview(null);
       setFormData({ ...formData, bank_qr_code_url: '' });
